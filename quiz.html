@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <title>AI-FlashMind | 沉浸式刷题</title>
+</head>
+<body class="bg-slate-50 min-h-screen">
+
+    <nav class="bg-white border-b border-slate-100 py-4 mb-8">
+        <div class="max-w-2xl mx-auto px-4 flex justify-between items-center">
+            <h1 class="text-xl font-black text-slate-800 tracking-tight">
+    🧠 AI-FlashMind <span class="text-[10px] font-normal text-blue-500 bg-blue-50 px-1.5 py-0.5 rounded ml-1">v0.1</span>
+</h1>
+
+<footer class="mt-20 text-center text-slate-300 text-[10px]">
+    由 DeepSeek AI 提供解析驱动 · 自主练习模式
+</footer>
+            <div id="progress-text" class="hidden text-xs font-bold text-slate-400">
+                进度 <span id="current-index">1</span> / <span id="total-count">0</span>
+            </div>
+        </div>
+    </nav>
+
+    <div class="max-w-2xl mx-auto px-4 pb-20">
+        <div id="import-zone" class="bg-white p-10 rounded-3xl shadow-sm border border-slate-100 text-center">
+            <div class="w-16 h-16 bg-blue-50 text-blue-500 rounded-2xl flex items-center justify-center text-2xl mx-auto mb-4">📂</div>
+            <h2 class="text-lg font-bold text-slate-800 mb-2">上传题库 (支持大批量)</h2>
+            <p class="text-slate-400 text-sm mb-6">建议单次上传不超过 100 题以获得最佳解析速度</p>
+            <input type="file" id="file-input" accept=".txt" class="hidden">
+            <button onclick="document.getElementById('file-input').click()" 
+                    class="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-xl font-bold transition-all shadow-lg shadow-blue-100">
+                立即识别题库
+            </button>
+        </div>
+
+        <div id="quiz-area" class="hidden space-y-6">
+            <div id="question-card" class="bg-white p-8 rounded-3xl shadow-sm border border-slate-100 min-h-[350px] flex flex-col">
+                <div class="mb-4">
+                    <span class="bg-blue-100 text-blue-600 text-[10px] px-2 py-1 rounded-md font-bold uppercase tracking-wider">单选题</span>
+                </div>
+                <h3 id="q-title" class="text-xl font-bold text-slate-800 mb-8 leading-relaxed"></h3>
+                
+                <div id="options-grid" class="grid gap-3 mb-8"></div>
+
+                <div id="explanation-box" class="hidden mt-auto p-5 bg-emerald-50 border border-emerald-100 rounded-2xl">
+                    <p class="text-emerald-700 font-bold mb-2 flex items-center">
+                        <span class="mr-2">💡</span> 正确答案：<span id="correct-ans"></span>
+                    </p>
+                    <div id="q-explain" class="text-emerald-600 text-sm leading-relaxed whitespace-pre-wrap"></div>
+                </div>
+            </div>
+
+            <div class="flex gap-4">
+                <button id="next-btn" class="flex-1 py-4 bg-blue-600 text-white rounded-2xl font-bold hover:bg-blue-700 transition-all hidden shadow-lg shadow-blue-200">
+                    下一题
+                </button>
+            </div>
+            
+            <button onclick="location.reload()" class="w-full text-slate-400 text-xs py-4 hover:text-slate-600 transition-colors">放弃当前练习，重新导入</button>
+        </div>
+    </div>
+
+    <script>
+        let questions = [];
+        let currentIndex = 0;
+
+        const fileInput = document.getElementById('file-input');
+        const importZone = document.getElementById('import-zone');
+        const quizArea = document.getElementById('quiz-area');
+        const nextBtn = document.getElementById('next-btn');
+        const explainBox = document.getElementById('explanation-box');
+
+        const loader = document.createElement('div');
+        loader.id = "loader";
+        loader.className = "fixed inset-0 bg-slate-900/60 backdrop-blur-md hidden flex items-center justify-center z-50";
+        loader.innerHTML = `
+            <div class="bg-white p-8 rounded-3xl shadow-2xl text-center max-w-sm mx-4">
+                <div class="animate-bounce text-4xl mb-4">🧠</div>
+                <p class="font-bold text-slate-800 text-lg mb-2">正在深度解析题库</p>
+                <p class="text-slate-400 text-sm">大数据量可能需要 10-30 秒，请勿关闭窗口...</p>
+            </div>`;
+        document.body.appendChild(loader);
+
+        fileInput.onchange = function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (event) => processWithAI(event.target.result);
+            reader.readAsText(file);
+        };
+
+        async function processWithAI(text) {
+            const API_KEY = "sk-00b162c7bf2e45689c05667865b4f0fb"; 
+            const URL = "https://api.deepseek.com/chat/completions";
+            loader.classList.remove('hidden');
+
+            try {
+                const response = await fetch(URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${API_KEY}` },
+                    body: JSON.stringify({
+                        model: "deepseek-chat",
+                        messages: [
+                            {
+                                role: "system",
+                                content: `你是一个题库解析器。必须返回 JSON 数组。
+                                每个对象包含：title (题目文字), options (4个选项的字符串数组), answer (正确选项字母A/B/C/D), explanation (50字以上解析)。
+                                注意：即使输入文本格式乱，也请提取出题目。`
+                            },
+                            { role: "user", content: `请解析以下题库内容：\n\n${text}` }
+                        ],
+                        temperature: 0.3 // 降低随机性，让格式更稳
+                    })
+                });
+
+                if (!response.ok) throw new Error(`服务器响应异常: ${response.status}`);
+
+                const data = await response.json();
+                let aiContent = data.choices[0].message.content;
+
+                // 清理并提取 JSON
+                const cleanJson = aiContent.replace(/```json/g, "").replace(/```/g, "").trim();
+                const match = cleanJson.match(/\[[\s\S]*\]/);
+                const result = JSON.parse(match ? match[0] : cleanJson);
+
+                // 字段对齐：防止 AI 返回 question 而不是 title
+                questions = result.map(q => ({
+                    title: q.title || q.question || "题目加载失败",
+                    options: q.options || [],
+                    answer: (q.answer || "A").trim().toUpperCase().charAt(0),
+                    explanation: q.explanation || q.analysis || "AI 正在思考该题的详细解析..."
+                }));
+
+                if (questions.length > 0) startQuiz();
+                else throw new Error("未能从文本中识别出任何题目");
+
+            } catch (error) {
+                alert("导入失败: " + error.message);
+                console.error(error);
+            } finally {
+                loader.classList.add('hidden');
+                fileInput.value = "";
+            }
+        }
+
+        function startQuiz() {
+            currentIndex = 0;
+            importZone.classList.add('hidden');
+            quizArea.classList.remove('hidden');
+            document.getElementById('progress-text').classList.remove('hidden');
+            document.getElementById('total-count').textContent = questions.length;
+            renderCurrentQuestion();
+        }
+
+        function renderCurrentQuestion() {
+            const q = questions[currentIndex];
+            document.getElementById('current-index').textContent = currentIndex + 1;
+            
+            // 安全渲染：解决显示不出来的问题
+            const titleEl = document.getElementById('q-title');
+            titleEl.textContent = q.title;
+
+            explainBox.classList.add('hidden');
+            nextBtn.classList.add('hidden');
+
+            const optionsGrid = document.getElementById('options-grid');
+            optionsGrid.innerHTML = ""; 
+
+            q.options.forEach((opt, i) => {
+                const btn = document.createElement('button');
+                btn.className = "option-btn w-full text-left p-5 rounded-2xl border border-slate-100 hover:bg-blue-50 transition-all font-medium text-slate-700 flex justify-between items-center group";
+                btn.onclick = () => handleSelect(i, q.answer);
+                
+                const label = String.fromCharCode(65 + i);
+                btn.innerHTML = `
+                    <span class="flex items-center">
+                        <span class="w-8 h-8 rounded-lg bg-slate-100 text-slate-400 flex items-center justify-center mr-3 group-hover:bg-blue-200 group-hover:text-blue-600 transition-colors">${label}</span>
+                        <span class="opt-text"></span>
+                    </span>
+                    <span class="status-icon text-xl"></span>
+                `;
+                // 使用 textContent 填入文字，确保 HTML 标签被转义
+                btn.querySelector('.opt-text').textContent = opt.replace(/^[A-Z][.\s、]*/, ''); 
+                
+                optionsGrid.appendChild(btn);
+            });
+        }
+
+        function handleSelect(selectedIndex, correctAns) {
+            const btns = document.querySelectorAll('.option-btn');
+            btns.forEach(btn => btn.disabled = true);
+
+            const selectedLetter = String.fromCharCode(65 + selectedIndex); 
+            const isCorrect = selectedLetter === correctAns;
+
+            if (isCorrect) {
+                btns[selectedIndex].classList.add('bg-emerald-50', 'border-emerald-500', 'text-emerald-700');
+                btns[selectedIndex].querySelector('.status-icon').textContent = "✨";
+            } else {
+                btns[selectedIndex].classList.add('bg-rose-50', 'border-rose-500', 'text-rose-700');
+                btns[selectedIndex].querySelector('.status-icon').textContent = "❌";
+                
+                // 标出正确答案
+                btns.forEach((btn, idx) => {
+                    if (String.fromCharCode(65 + idx) === correctAns) {
+                        btn.classList.add('border-emerald-300', 'bg-emerald-50/50');
+                    }
+                });
+            }
+
+            // 显示解析
+            const q = questions[currentIndex];
+            document.getElementById('correct-ans').textContent = q.answer;
+            document.getElementById('q-explain').textContent = q.explanation;
+            explainBox.classList.remove('hidden');
+            
+            if (currentIndex < questions.length - 1) {
+                nextBtn.classList.remove('hidden');
+            } else {
+                nextBtn.textContent = "练习圆满完成！刷新重来";
+                nextBtn.classList.remove('hidden', 'bg-blue-600');
+                nextBtn.classList.add('bg-slate-800');
+                nextBtn.onclick = () => location.reload();
+            }
+        }
+
+        nextBtn.onclick = function() {
+            currentIndex++;
+            renderCurrentQuestion();
+        };
+    </script>
+</body>
+</html>
