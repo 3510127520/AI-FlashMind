@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
-    <title>AI-FlashMind | 智能题库 & 生词提取器</title>
+    <title>AI-FlashMind | 智能题库&生词萃取</title>
     <style>
         .option-btn { cursor: pointer; transition: all 0.2s ease-in-out; }
         .option-btn:active { transform: scale(0.98); }
@@ -19,7 +19,6 @@
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
         
-        /* 模式切换过渡 */
         .mode-active { background-color: white; color: #4f46e5; box-shadow: 0 1px 3px rgba(0,0,0,0.1); font-weight: bold; }
         .mode-inactive { color: #64748b; font-weight: 500; }
         .mode-inactive:hover { color: #475569; }
@@ -38,12 +37,6 @@
                 <div id="progress-indicator" class="hidden text-xs font-mono bg-indigo-50 px-3 py-1 rounded-full text-indigo-600 font-bold border border-indigo-100">
                     <span id="curr-idx">0</span> / <span id="total-idx">0</span>
                 </div>
-                <button onclick="toggleSettings()" class="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-colors">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 010 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 010-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28Z" />
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0Z" />
-                    </svg>
-                </button>
             </div>
         </div>
         <div id="bg-loading-bar" class="hidden h-1 w-full absolute bottom-0 left-0 loading-bar"></div>
@@ -96,7 +89,7 @@
 
         <div id="quiz-area" class="hidden space-y-4">
             <div id="bg-loading-tip" class="text-[11px] text-indigo-500 font-bold text-center bg-indigo-50 rounded-full py-1.5 mb-2 animate-pulse">
-                ⚡ AI 正在后台疯狂处理剩余内容，请先答题...
+                ⚡ DeepSeek 正在后台疯狂处理剩余内容，请先答题...
             </div>
             <div class="bg-white p-7 rounded-[2.5rem] shadow-sm border border-slate-100 relative">
                 <div id="q-tag" class="bg-indigo-100 text-indigo-700 text-[10px] px-3 py-1 rounded-md font-black mb-4 inline-block uppercase tracking-wider">单选题</div>
@@ -136,18 +129,6 @@
         </div>
     </main>
 
-    <div id="settings-modal" class="hidden fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[100] flex items-center justify-center p-4 opacity-0 transition-opacity">
-        <div class="bg-white rounded-[2rem] p-7 max-w-sm w-full shadow-2xl transform scale-95 transition-transform" id="settings-modal-content">
-            <h3 class="text-lg font-bold text-slate-800 mb-2">配置 API Key</h3>
-            <p class="text-xs text-slate-500 leading-relaxed mb-6">本工具由 DeepSeek 强力驱动。密钥仅保存在本地浏览器，绝不上传。</p>
-            <input type="password" id="api-key-input" placeholder="sk-..." class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 mb-6">
-            <div class="flex gap-3">
-                <button onclick="toggleSettings()" class="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl font-bold text-sm">取消</button>
-                <button onclick="saveApiKey()" class="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold shadow-md text-sm">保存</button>
-            </div>
-        </div>
-    </div>
-
     <script>
         // ================= 全局状态与配置 =================
         let questions = [];
@@ -157,32 +138,9 @@
         let isFirstQuestionRendered = false; 
         let correctCount = 0;     
         let wrongQuestions = [];  
-        
-        // 【新增】应用模式状态
-        let currentAppMode = 'quiz'; // 'quiz' (默认题库) 或 'vocab' (生词萃取)
+        let currentAppMode = 'quiz';
 
-        function getApiKey() { return localStorage.getItem('ai_flashmind_apikey') || ""; }
-
-        function toggleSettings() {
-            const modal = document.getElementById('settings-modal');
-            const content = document.getElementById('settings-modal-content');
-            if (modal.classList.contains('hidden')) {
-                document.getElementById('api-key-input').value = getApiKey();
-                modal.classList.remove('hidden');
-                setTimeout(() => { modal.classList.remove('opacity-0'); content.classList.remove('scale-95'); }, 10);
-            } else {
-                modal.classList.add('opacity-0'); content.classList.add('scale-95');
-                setTimeout(() => { modal.classList.add('hidden'); }, 300);
-            }
-        }
-
-        function saveApiKey() {
-            const key = document.getElementById('api-key-input').value.trim();
-            if (key) { localStorage.setItem('ai_flashmind_apikey', key); toggleSettings(); } 
-            else { alert("API Key 不能为空"); }
-        }
-
-        // ================= 【新增】UI 模式切换逻辑 =================
+        // ================= UI 模式切换 =================
         function switchMode(mode) {
             if (currentAppMode === mode) return;
             currentAppMode = mode;
@@ -229,11 +187,10 @@
         }
 
         function triggerUpload() {
-            if (!getApiKey()) { alert("请先点击右上角 ⚙️ 齿轮图标，配置您的 API Key！"); toggleSettings(); return; }
             document.getElementById('file-input').click();
         }
 
-        // ================= 文件处理与请求发送 =================
+        // ================= 文件处理 =================
         document.getElementById('file-input').onchange = async (e) => {
             const file = e.target.files[0];
             if (!file) return;
@@ -266,7 +223,7 @@
                     const isLastChunk = (i === chunks.length - 1);
                     if (isFirstQuestionRendered) {
                         const actionText = currentAppMode === 'quiz' ? '解析后续题库' : '萃取后续生词';
-                        document.getElementById('bg-loading-tip').textContent = `⚡ AI 正在后台 ${actionText} (第 ${i + 1}/${chunks.length} 批)...`;
+                        document.getElementById('bg-loading-tip').textContent = `⚡ DeepSeek 正在后台 ${actionText} (第 ${i + 1}/${chunks.length} 批)...`;
                     }
                     await parseQuestionsStream(chunks[i], isLastChunk);
                     if (!isLastChunk) await new Promise(resolve => setTimeout(resolve, 1500));
@@ -296,53 +253,48 @@
             isStreamFinished = false; isFirstQuestionRendered = false;
         }
 
-        // ================= 【核心修改】动态分发 System Prompt =================
+        // ================= 后端代理请求：解析题目 =================
         async function parseQuestionsStream(textChunk, isLastChunk) {
-            
-            // 题库模式 Prompt
             const quizPrompt = `你是一个严格的题库结构化解析机器。将文本转换为 JSONL 格式（每行一个独立的JSON对象）。
 【最高准则】：严禁你自己解答！只提取原文中明示的答案。
 【格式红线】：
 1. 绝对不要输出数组符号 [] 或 \`\`\`json。
-2. 必须且只能用单行 JSON 输出一道题！两道题之间必须有且只有一个换行符 \\n。
-3. 题目文本中出现的任何英文双引号，必须严格转义为 \\"。
-4. title 字段【只能包含题干】！绝对不能把 A、B、C、D 等选项文字混入 title 中。
-5. 对于判断题，无论原文是否有选项，必须强制输出 "options":["正确","错误"]，并确保 answer 映射为 "A" 或 "B"。
+2. 必须且只能用单行 JSON 输出一道题！
+3. options 字段必须是一个包含多个独立字符串的数组，每个选项单独占一个元素！
+4. options 数组中的文本绝对不要包含 A、B、C、D 等字母前缀！
+5. title 字段只能包含题干！绝对不能把选项文字混入 title 中。
 格式示例：
-{"type":"单选题","title":"1+1=?","options":["1","2"],"answer":"B"}`;
+{"type":"单选题","title":"中国首都是哪里？","options":["上海","北京","广州","深圳"],"answer":"B"}`;
 
-            // 生词萃取模式 Prompt
             const vocabPrompt = `你是一位专业的英语词汇老师。请阅读用户提供的英文文本，从中提取最核心、最高频或有一定难度的 3 到 5 个英语生词。
 然后，为你提取的每个生词，生成一道英语词意考查单选题。
 【格式红线】：
-1. 必须且只能用单行 JSONL 输出一道题！绝对不要输出数组 [] 或 markdown。
+1. 必须且只能用单行 JSONL 输出一道题！
 2. 题型固定为 "单选题"，title 格式固定为："单词 [提取的英文单词] 在文中的准确释义是？"
-3. options 必须是 4 个中文翻译选项（1个正确，3个具有迷惑性的错误选项）。
-4. 正确答案的字母 (A/B/C/D) 必须随机分布。
+3. options 必须是包含 4 个独立中文字符串的数组，每个选项单独占一个元素！【绝对禁止】包含 A/B/C/D 前缀！
+4. 4个选项中必须有1个正确释义和3个具有迷惑性的错误释义。正确答案的字母必须随机分布。
 格式示例：
 {"type":"单选题","title":"单词 'Intricate' 在文中的准确释义是？","options":["复杂的，错综的","有趣的","简单的","巨大的"],"answer":"A"}`;
 
             const activePrompt = currentAppMode === 'quiz' ? quizPrompt : vocabPrompt;
 
             try {
-                const response = await fetch("https://api.deepseek.com/chat/completions", {
+                // 【核心修改】全部发向你自己的 Vercel 后端！不再暴露任何 Key！
+                const response = await fetch("/api/chat", {
                     method: "POST",
-                    headers: { "Content-Type": "application/json", "Authorization": `Bearer ${getApiKey()}` },
+                    headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
-                        model: "deepseek-chat",
+                        model: "deepseek-chat", // 明确告诉后端我们要用满血版 DeepSeek
                         stream: true,
                         messages: [
                             { role: "system", content: activePrompt },
                             { role: "user", content: textChunk }
                         ],
-                        temperature: currentAppMode === 'vocab' ? 0.3 : 0.0 // 萃取生词需要一点创造力编干扰项
+                        temperature: currentAppMode === 'vocab' ? 0.3 : 0.0
                     })
                 });
 
-                if (!response.ok) {
-                    if (response.status === 401) throw new Error("API Key 无效，请重新设置。");
-                    throw new Error(`网络错误 (${response.status})`);
-                }
+                if (!response.ok) throw new Error(`后端请求失败 (${response.status})`);
 
                 const reader = response.body.getReader();
                 const decoder = new TextDecoder("utf-8");
@@ -403,11 +355,11 @@
                     try { questions.push(JSON.parse(textBuffer.trim())); document.getElementById('total-idx').textContent = questions.length; } catch(e) {}
                 }
             } catch (error) {
-                if(questions.length === 0) { alert(`连接失败: ${error.message}`); resetUploadState(); }
+                if(questions.length === 0) { alert(`连接失败: ${error.message}。请检查 Vercel 环境变量配置！`); resetUploadState(); }
             }
         }
 
-        // 渲染与交互逻辑不变，为了节省长度折叠处理
+        // ================= 渲染与交互逻辑 =================
         function render() {
             const q = questions[currentIdx]; selections = [];
             document.getElementById('curr-idx').textContent = currentIdx + 1;
@@ -474,30 +426,31 @@
             fetchExplain(q, document.getElementById('ai-explain'));
         };
 
+        // ================= 后端代理请求：生成解析 =================
         async function fetchExplain(q, containerNode) {
-            containerNode.textContent = "✨ AI 正在生成深度解析...";
+            containerNode.textContent = "✨ DeepSeek 正在生成深度解析...";
             
-            // 生词模式的解析，不仅解释单词，还要给个例句
             const explainPrompt = currentAppMode === 'quiz' 
                 ? "用50字以内简练地分析这道题的考点和正确选项的原因。"
                 : "请详细解释这个英文单词的含义、词性，并给出一个包含该单词的经典英文例句（附中文翻译）。";
 
             try {
-                const res = await fetch("https://api.deepseek.com/chat/completions", {
+                // 【核心修改】请求解析也走你自己的 Vercel 后端！
+                const res = await fetch("/api/chat", {
                     method: "POST",
-                    headers: { "Content-Type": "application/json", "Authorization": `Bearer ${getApiKey()}` },
+                    headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
-                        model: "deepseek-chat",
+                        model: "deepseek-chat", // 明确使用 deepseek-chat
                         messages: [{role:"system", content: explainPrompt}, {role:"user", content:`题目：${q.title}\n答案：${q.answer}`}]
                     })
                 });
                 const data = await res.json();
                 containerNode.textContent = data.choices[0].message.content;
-            } catch (e) { containerNode.textContent = "暂无解析（网络异常或配置错误）。"; }
+            } catch (e) { containerNode.textContent = "暂无解析（网络异常或服务器未响应）。"; }
         }
 
         document.getElementById('next-question').onclick = () => {
-            if (currentIdx + 1 >= questions.length && !isStreamFinished) { alert("你做得太快啦！稍等片刻，AI 正在后台飞速解析..."); return; }
+            if (currentIdx + 1 >= questions.length && !isStreamFinished) { alert("你做得太快啦！稍等片刻，DeepSeek 正在后台飞速解析..."); return; }
             currentIdx++;
             if (currentIdx < questions.length) render();
             else showSummary();
