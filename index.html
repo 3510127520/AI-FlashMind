@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
-    <title>AI-FlashMind | 智能题库与错题解析生成器</title>
+    <title>AI-FlashMind | 智能题库 & 生词提取器</title>
     <style>
         .option-btn { cursor: pointer; transition: all 0.2s ease-in-out; }
         .option-btn:active { transform: scale(0.98); }
@@ -15,10 +15,14 @@
         @keyframes loading-wave { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
         .mistake-item { animation: fadeIn 0.5s ease-out forwards; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-        /* 隐藏滚动条但保留滚动功能，让界面更清爽 */
         ::-webkit-scrollbar { width: 6px; }
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        
+        /* 模式切换过渡 */
+        .mode-active { background-color: white; color: #4f46e5; box-shadow: 0 1px 3px rgba(0,0,0,0.1); font-weight: bold; }
+        .mode-inactive { color: #64748b; font-weight: 500; }
+        .mode-inactive:hover { color: #475569; }
     </style>
 </head>
 <body class="bg-slate-50 min-h-screen text-slate-900 font-sans flex flex-col">
@@ -26,7 +30,7 @@
     <nav class="bg-white/80 backdrop-blur-md border-b px-5 py-4 sticky top-0 z-50 shadow-sm">
         <div class="max-w-xl mx-auto flex justify-between items-center">
             <div class="flex items-center gap-2">
-                <span class="text-xl">🧠</span>
+                <span class="text-xl" id="nav-emoji">🧠</span>
                 <h1 class="font-bold text-lg tracking-tight text-slate-800">AI-FlashMind</h1>
             </div>
             
@@ -34,8 +38,8 @@
                 <div id="progress-indicator" class="hidden text-xs font-mono bg-indigo-50 px-3 py-1 rounded-full text-indigo-600 font-bold border border-indigo-100">
                     <span id="curr-idx">0</span> / <span id="total-idx">0</span>
                 </div>
-                <button onclick="toggleSettings()" class="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-colors" title="设置 API Key">
-                    <svg xmlns="http://www.w3.org/polygons" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5">
+                <button onclick="toggleSettings()" class="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-colors">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 010 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 010-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28Z" />
                         <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0Z" />
                     </svg>
@@ -45,29 +49,39 @@
         <div id="bg-loading-bar" class="hidden h-1 w-full absolute bottom-0 left-0 loading-bar"></div>
     </nav>
 
-    <main class="max-w-xl mx-auto px-4 py-10 flex-1 w-full">
+    <main class="max-w-xl mx-auto px-4 py-8 flex-1 w-full">
         
         <div id="setup-area" class="space-y-6">
-            <div class="bg-white p-8 md:p-10 rounded-[2.5rem] shadow-sm border border-slate-200 text-center relative overflow-hidden">
-                <div class="w-16 h-16 bg-indigo-50 rounded-2xl flex items-center justify-center mx-auto mb-6">
+            
+            <div class="bg-slate-200/60 p-1.5 rounded-2xl flex relative w-full mb-2">
+                <button id="btn-mode-quiz" onclick="switchMode('quiz')" class="flex-1 py-3 text-sm rounded-xl transition-all duration-300 mode-active z-10 flex items-center justify-center gap-2">
+                    📝 考卷解析模式
+                </button>
+                <button id="btn-mode-vocab" onclick="switchMode('vocab')" class="flex-1 py-3 text-sm rounded-xl transition-all duration-300 mode-inactive z-10 flex items-center justify-center gap-2">
+                    📖 英语生词萃取
+                </button>
+            </div>
+
+            <div class="bg-white p-8 md:p-10 rounded-[2.5rem] shadow-sm border border-slate-200 text-center relative overflow-hidden transition-all" id="intro-card">
+                <div class="w-16 h-16 bg-indigo-50 rounded-2xl flex items-center justify-center mx-auto mb-6" id="intro-icon">
                     <span class="text-3xl">✨</span>
                 </div>
-                <h2 class="text-2xl font-bold mb-3 text-slate-800 tracking-tight">将静态文档，变成专属智能题库</h2>
-                <p class="text-slate-500 text-sm leading-relaxed mb-8">
-                    一键导入 Word 或 TXT 文档，AI 将自动提取题目并生成交互式练习。支持即时判卷、智能评分以及专属错题深度解析。
+                <h2 class="text-2xl font-bold mb-3 text-slate-800 tracking-tight" id="intro-title">一键将静态文档，变成专属题库</h2>
+                <p class="text-slate-500 text-sm leading-relaxed mb-8" id="intro-desc">
+                    导入 Word 或 TXT 文档，AI 自动提取原卷题目生成交互式练习。支持即时判卷与深度错题解析。
                 </p>
                 
-                <div class="bg-slate-50 rounded-2xl p-4 mb-8 text-left border border-slate-100">
+                <div class="bg-slate-50 rounded-2xl p-4 mb-8 text-left border border-slate-100" id="intro-tips">
                     <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">💡 导入小贴士</h3>
                     <ul class="text-xs text-slate-600 space-y-1.5">
-                        <li>• 推荐在正确选项后标注星号 <b>*</b>，或标明 <b>答案：A</b></li>
-                        <li>• 支持单选、多选与判断题的自动识别</li>
-                        <li>• 纯文本 (.txt) 格式解析速度最快、最稳定</li>
+                        <li>• 推荐在正确选项后标注星号 <b>*</b> 或 <b>答案：A</b></li>
+                        <li>• 支持单选、多选与判断题的精准识别</li>
+                        <li>• 长篇文档将自动切片处理，防内存崩溃</li>
                     </ul>
                 </div>
 
                 <input type="file" id="file-input" accept=".txt,.docx" class="hidden">
-                <button onclick="triggerUpload()" 
+                <button onclick="triggerUpload()" id="upload-btn"
                         class="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-4 rounded-2xl font-bold shadow-lg shadow-indigo-200 transition-all flex justify-center items-center gap-2">
                     选择文件并开始解析
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" /></svg>
@@ -82,28 +96,23 @@
 
         <div id="quiz-area" class="hidden space-y-4">
             <div id="bg-loading-tip" class="text-[11px] text-indigo-500 font-bold text-center bg-indigo-50 rounded-full py-1.5 mb-2 animate-pulse">
-                ⚡ AI 正在后台疯狂解析后续题目，请先答题...
+                ⚡ AI 正在后台疯狂处理剩余内容，请先答题...
             </div>
-            
             <div class="bg-white p-7 rounded-[2.5rem] shadow-sm border border-slate-100 relative">
                 <div id="q-tag" class="bg-indigo-100 text-indigo-700 text-[10px] px-3 py-1 rounded-md font-black mb-4 inline-block uppercase tracking-wider">单选题</div>
                 <h3 id="q-text" class="text-lg font-bold leading-relaxed mb-6 text-slate-800"></h3>
                 <div id="options-list" class="grid gap-3"></div>
-                
                 <div id="ans-panel" class="hidden mt-8 pt-6 border-t border-dashed border-slate-200">
                     <div class="flex items-center justify-between mb-3">
                         <div class="flex items-center gap-2">
                             <span class="bg-emerald-100 text-emerald-700 text-xs px-2 py-1 rounded font-bold">正确答案</span>
                             <span id="correct-answer" class="text-xl font-black text-emerald-600 tracking-widest"></span>
                         </div>
-                        <button id="btn-explain" class="text-xs text-indigo-600 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-full font-bold transition-colors">
-                            ✨ AI 智能解析
-                        </button>
+                        <button id="btn-explain" class="text-xs text-indigo-600 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-full font-bold transition-colors">✨ AI 智能解析</button>
                     </div>
                     <div id="ai-explain" class="hidden text-[13px] text-slate-500 bg-slate-50 p-4 rounded-2xl border border-slate-100 leading-relaxed italic"></div>
                 </div>
             </div>
-            
             <div class="flex gap-3">
                 <button id="multi-submit" class="hidden flex-1 py-4 bg-indigo-600 text-white rounded-2xl font-bold shadow-lg hover:bg-indigo-700 transition-all">确认提交</button>
                 <button id="next-question" class="hidden flex-1 py-4 bg-slate-900 text-white rounded-2xl font-bold shadow-lg hover:bg-slate-800 transition-all">下一题</button>
@@ -116,40 +125,25 @@
                 <h2 class="text-2xl font-bold mb-2 text-slate-800">练习完成！</h2>
                 <div class="text-[4rem] font-black tracking-tight text-indigo-600 my-4" id="final-score">100<span class="text-xl text-indigo-400">分</span></div>
                 <p class="text-slate-500 font-medium mb-8 bg-slate-50 py-2 rounded-xl inline-block px-6 border border-slate-100">
-                    共 <span id="total-q-count" class="font-bold text-slate-700">0</span> 题，
-                    答对 <span id="correct-q-count" class="font-bold text-emerald-500">0</span> 题
+                    共 <span id="total-q-count" class="font-bold text-slate-700">0</span> 题，答对 <span id="correct-q-count" class="font-bold text-emerald-500">0</span> 题
                 </p>
-                <button onclick="location.reload()" class="w-full bg-slate-900 hover:bg-slate-800 text-white py-4 rounded-2xl font-bold shadow-lg transition-colors">
-                    返回首页 / 载入新题库
-                </button>
+                <button onclick="location.reload()" class="w-full bg-slate-900 hover:bg-slate-800 text-white py-4 rounded-2xl font-bold shadow-lg transition-colors">返回首页 / 载入新任务</button>
             </div>
-
             <div id="mistake-book" class="hidden bg-white p-7 rounded-[2.5rem] shadow-sm border border-slate-200">
-                <h3 class="text-lg font-bold mb-6 flex items-center gap-2 border-b pb-4">
-                    <span class="text-rose-500 text-xl">📖</span> 你的专属错题本
-                </h3>
+                <h3 class="text-lg font-bold mb-6 flex items-center gap-2 border-b pb-4"><span class="text-rose-500 text-xl">📖</span> 你的专属错题本</h3>
                 <div id="mistake-list" class="space-y-5"></div>
             </div>
         </div>
     </main>
 
-    <footer class="py-6 text-center text-xs text-slate-400 mt-auto">
-        <p>AI-FlashMind © 2024. All logic runs in your browser.</p>
-    </footer>
-
     <div id="settings-modal" class="hidden fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[100] flex items-center justify-center p-4 opacity-0 transition-opacity">
         <div class="bg-white rounded-[2rem] p-7 max-w-sm w-full shadow-2xl transform scale-95 transition-transform" id="settings-modal-content">
             <h3 class="text-lg font-bold text-slate-800 mb-2">配置 API Key</h3>
-            <p class="text-xs text-slate-500 leading-relaxed mb-6">
-                本工具由 DeepSeek 强力驱动。请填入您的 API Key。密钥<b>仅保存在您的浏览器本地</b>，绝对不会上传至任何第三方服务器。
-            </p>
-            <input type="password" id="api-key-input" placeholder="sk-..." class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent mb-6 transition-all">
+            <p class="text-xs text-slate-500 leading-relaxed mb-6">本工具由 DeepSeek 强力驱动。密钥仅保存在本地浏览器，绝不上传。</p>
+            <input type="password" id="api-key-input" placeholder="sk-..." class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 mb-6">
             <div class="flex gap-3">
-                <button onclick="toggleSettings()" class="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl font-bold transition-colors text-sm">取消</button>
-                <button onclick="saveApiKey()" class="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold transition-colors shadow-md text-sm">保存</button>
-            </div>
-            <div class="mt-4 text-center">
-                <a href="https://platform.deepseek.com/" target="_blank" class="text-[10px] text-indigo-500 hover:underline">去 DeepSeek 官网获取 Key ↗</a>
+                <button onclick="toggleSettings()" class="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl font-bold text-sm">取消</button>
+                <button onclick="saveApiKey()" class="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold shadow-md text-sm">保存</button>
             </div>
         </div>
     </div>
@@ -163,56 +157,83 @@
         let isFirstQuestionRendered = false; 
         let correctCount = 0;     
         let wrongQuestions = [];  
+        
+        // 【新增】应用模式状态
+        let currentAppMode = 'quiz'; // 'quiz' (默认题库) 或 'vocab' (生词萃取)
 
-        // 动态获取本地保存的 API Key
-        function getApiKey() {
-            return localStorage.getItem('ai_flashmind_apikey') || "";
-        }
+        function getApiKey() { return localStorage.getItem('ai_flashmind_apikey') || ""; }
 
-        // ================= 设置面板逻辑 =================
         function toggleSettings() {
             const modal = document.getElementById('settings-modal');
             const content = document.getElementById('settings-modal-content');
-            const input = document.getElementById('api-key-input');
-            
             if (modal.classList.contains('hidden')) {
-                input.value = getApiKey();
+                document.getElementById('api-key-input').value = getApiKey();
                 modal.classList.remove('hidden');
-                // 触发过渡动画
-                setTimeout(() => {
-                    modal.classList.remove('opacity-0');
-                    content.classList.remove('scale-95');
-                }, 10);
+                setTimeout(() => { modal.classList.remove('opacity-0'); content.classList.remove('scale-95'); }, 10);
             } else {
-                modal.classList.add('opacity-0');
-                content.classList.add('scale-95');
-                setTimeout(() => {
-                    modal.classList.add('hidden');
-                }, 300); // 匹配 CSS 过渡时间
+                modal.classList.add('opacity-0'); content.classList.add('scale-95');
+                setTimeout(() => { modal.classList.add('hidden'); }, 300);
             }
         }
 
         function saveApiKey() {
             const key = document.getElementById('api-key-input').value.trim();
-            if (key) {
-                localStorage.setItem('ai_flashmind_apikey', key);
-                toggleSettings();
+            if (key) { localStorage.setItem('ai_flashmind_apikey', key); toggleSettings(); } 
+            else { alert("API Key 不能为空"); }
+        }
+
+        // ================= 【新增】UI 模式切换逻辑 =================
+        function switchMode(mode) {
+            if (currentAppMode === mode) return;
+            currentAppMode = mode;
+            
+            const btnQuiz = document.getElementById('btn-mode-quiz');
+            const btnVocab = document.getElementById('btn-mode-vocab');
+            const icon = document.getElementById('intro-icon');
+            const title = document.getElementById('intro-title');
+            const desc = document.getElementById('intro-desc');
+            const tips = document.getElementById('intro-tips');
+            const uploadBtn = document.getElementById('upload-btn');
+            
+            if (mode === 'quiz') {
+                btnQuiz.className = "flex-1 py-3 text-sm rounded-xl transition-all duration-300 mode-active z-10 flex items-center justify-center gap-2";
+                btnVocab.className = "flex-1 py-3 text-sm rounded-xl transition-all duration-300 mode-inactive z-10 flex items-center justify-center gap-2";
+                icon.innerHTML = '<span class="text-3xl">✨</span>';
+                title.textContent = "一键将静态文档，变成专属题库";
+                desc.textContent = "导入 Word 或 TXT 文档，AI 自动提取原卷题目生成交互式练习。支持即时判卷与深度错题解析。";
+                tips.innerHTML = `
+                    <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">💡 导入小贴士</h3>
+                    <ul class="text-xs text-slate-600 space-y-1.5">
+                        <li>• 推荐在正确选项后标注星号 <b>*</b> 或 <b>答案：A</b></li>
+                        <li>• 支持单选、多选与判断题的精准识别</li>
+                        <li>• 长篇文档将自动切片处理，防内存崩溃</li>
+                    </ul>`;
+                uploadBtn.className = "w-full bg-indigo-600 hover:bg-indigo-700 text-white py-4 rounded-2xl font-bold shadow-lg shadow-indigo-200 transition-all flex justify-center items-center gap-2";
+                uploadBtn.innerHTML = `选择题库文件并解析 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" /></svg>`;
             } else {
-                alert("API Key 不能为空");
+                btnVocab.className = "flex-1 py-3 text-sm rounded-xl transition-all duration-300 mode-active z-10 flex items-center justify-center gap-2";
+                btnQuiz.className = "flex-1 py-3 text-sm rounded-xl transition-all duration-300 mode-inactive z-10 flex items-center justify-center gap-2";
+                icon.innerHTML = '<span class="text-3xl">📖</span>';
+                title.textContent = "萃取文章生词，生成记忆闪卡";
+                desc.textContent = "导入英语外刊、原版书章节或阅读理解。AI 将化身英语老师，自动为你提取核心高频生词，并生成选择题考查记忆。";
+                tips.innerHTML = `
+                    <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">💡 萃取小贴士</h3>
+                    <ul class="text-xs text-slate-600 space-y-1.5">
+                        <li>• 随便复制一篇全英文文章存为 .txt 上传即可</li>
+                        <li>• AI 会根据上下文语境生成对应的中文释义干扰项</li>
+                        <li>• 每1500字符最多提取 5 个高难度核心词汇</li>
+                    </ul>`;
+                uploadBtn.className = "w-full bg-emerald-600 hover:bg-emerald-700 text-white py-4 rounded-2xl font-bold shadow-lg shadow-emerald-200 transition-all flex justify-center items-center gap-2";
+                uploadBtn.innerHTML = `选择英文文章并萃取 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" /></svg>`;
             }
         }
 
-        // ================= 文件上传控制 =================
         function triggerUpload() {
-            if (!getApiKey()) {
-                alert("请先点击右上角 ⚙️ 齿轮图标，配置您的 API Key！");
-                toggleSettings();
-                return;
-            }
+            if (!getApiKey()) { alert("请先点击右上角 ⚙️ 齿轮图标，配置您的 API Key！"); toggleSettings(); return; }
             document.getElementById('file-input').click();
         }
 
-        // ================= 核心业务逻辑 =================
+        // ================= 文件处理与请求发送 =================
         document.getElementById('file-input').onchange = async (e) => {
             const file = e.target.files[0];
             if (!file) return;
@@ -224,17 +245,13 @@
             
             let content = "";
             try {
-                loadingText.textContent = "正在提取文本结构...";
+                loadingText.textContent = "正在读取文档...";
                 if (file.name.endsWith('.docx')) {
                     const arrayBuffer = await file.arrayBuffer();
                     const result = await mammoth.convertToHtml({ arrayBuffer });
-                    
                     let htmlStr = result.value.replace(/color:\s*(#ff0000|#FF0000|red|rgb\(255,\s*0,\s*0\))/gi, "MARK_ANS");
                     htmlStr = htmlStr.replace(/<\/p>/gi, '\n').replace(/<br\s*\/?>/gi, '\n').replace(/<\/div>/gi, '\n').replace(/<\/li>/gi, '\n');
-                    
-                    const tempDiv = document.createElement("div");
-                    tempDiv.innerHTML = htmlStr;
-                    content = tempDiv.textContent || "";
+                    const tempDiv = document.createElement("div"); tempDiv.innerHTML = htmlStr; content = tempDiv.textContent || "";
                 } else {
                     content = await file.text();
                 }
@@ -248,27 +265,22 @@
                 for (let i = 0; i < chunks.length; i++) {
                     const isLastChunk = (i === chunks.length - 1);
                     if (isFirstQuestionRendered) {
-                        document.getElementById('bg-loading-tip').textContent = `⚡ AI 正在后台吞噬长文档 (第 ${i + 1}/${chunks.length} 批)...`;
+                        const actionText = currentAppMode === 'quiz' ? '解析后续题库' : '萃取后续生词';
+                        document.getElementById('bg-loading-tip').textContent = `⚡ AI 正在后台 ${actionText} (第 ${i + 1}/${chunks.length} 批)...`;
                     }
                     await parseQuestionsStream(chunks[i], isLastChunk);
                     if (!isLastChunk) await new Promise(resolve => setTimeout(resolve, 1500));
                 }
             } catch (error) {
-                console.error("处理异常:", error);
-                alert(`读取或处理失败: ${error.message}`);
+                alert(`读取失败: ${error.message}`);
                 resetUploadState();
             }
         };
 
         function splitTextIntoChunks(text, maxLen) {
-            const lines = text.split('\n');
-            const chunks = [];
-            let currentChunk = "";
+            const lines = text.split('\n'); const chunks = []; let currentChunk = "";
             for (const line of lines) {
-                if (currentChunk.length + line.length > maxLen && currentChunk.trim().length > 0) {
-                    chunks.push(currentChunk.trim());
-                    currentChunk = "";
-                }
+                if (currentChunk.length + line.length > maxLen && currentChunk.trim().length > 0) { chunks.push(currentChunk.trim()); currentChunk = ""; }
                 currentChunk += line + "\n";
             }
             if (currentChunk.trim().length > 0) chunks.push(currentChunk.trim());
@@ -280,15 +292,38 @@
             document.getElementById('setup-area').style.pointerEvents = 'auto';
             document.getElementById('setup-area').classList.remove('opacity-50');
             document.getElementById('file-input').value = '';
-            questions = [];
-            currentIdx = 0;
-            correctCount = 0;
-            wrongQuestions = [];
-            isStreamFinished = false;
-            isFirstQuestionRendered = false;
+            questions = []; currentIdx = 0; correctCount = 0; wrongQuestions = [];
+            isStreamFinished = false; isFirstQuestionRendered = false;
         }
 
+        // ================= 【核心修改】动态分发 System Prompt =================
         async function parseQuestionsStream(textChunk, isLastChunk) {
+            
+            // 题库模式 Prompt
+            const quizPrompt = `你是一个严格的题库结构化解析机器。将文本转换为 JSONL 格式（每行一个独立的JSON对象）。
+【最高准则】：严禁你自己解答！只提取原文中明示的答案。
+【格式红线】：
+1. 绝对不要输出数组符号 [] 或 \`\`\`json。
+2. 必须且只能用单行 JSON 输出一道题！两道题之间必须有且只有一个换行符 \\n。
+3. 题目文本中出现的任何英文双引号，必须严格转义为 \\"。
+4. title 字段【只能包含题干】！绝对不能把 A、B、C、D 等选项文字混入 title 中。
+5. 对于判断题，无论原文是否有选项，必须强制输出 "options":["正确","错误"]，并确保 answer 映射为 "A" 或 "B"。
+格式示例：
+{"type":"单选题","title":"1+1=?","options":["1","2"],"answer":"B"}`;
+
+            // 生词萃取模式 Prompt
+            const vocabPrompt = `你是一位专业的英语词汇老师。请阅读用户提供的英文文本，从中提取最核心、最高频或有一定难度的 3 到 5 个英语生词。
+然后，为你提取的每个生词，生成一道英语词意考查单选题。
+【格式红线】：
+1. 必须且只能用单行 JSONL 输出一道题！绝对不要输出数组 [] 或 markdown。
+2. 题型固定为 "单选题"，title 格式固定为："单词 [提取的英文单词] 在文中的准确释义是？"
+3. options 必须是 4 个中文翻译选项（1个正确，3个具有迷惑性的错误选项）。
+4. 正确答案的字母 (A/B/C/D) 必须随机分布。
+格式示例：
+{"type":"单选题","title":"单词 'Intricate' 在文中的准确释义是？","options":["复杂的，错综的","有趣的","简单的","巨大的"],"answer":"A"}`;
+
+            const activePrompt = currentAppMode === 'quiz' ? quizPrompt : vocabPrompt;
+
             try {
                 const response = await fetch("https://api.deepseek.com/chat/completions", {
                     method: "POST",
@@ -297,29 +332,16 @@
                         model: "deepseek-chat",
                         stream: true,
                         messages: [
-                            { 
-                                role: "system", 
-                                content: `你是一个严格的题库结构化解析机器。将文本转换为 JSONL 格式（每行一个独立的JSON对象）。
-【最高准则】：严禁你自己解答！只提取原文中明示的答案。
-【格式红线】：
-1. 绝对不要输出数组符号 [] 或 \`\`\`json。
-2. 必须且只能用单行 JSON 输出一道题！两道题之间必须有且只有一个换行符 \\n。
-3. 题目文本中出现的任何英文双引号，必须严格转义为 \\"。
-4. 对于判断题，无论原文是否有选项，必须强制输出 "options":["正确","错误"]，并确保 answer 映射为 "A"(代表正确) 或 "B"(代表错误)。
-格式示例：
-{"type":"单选题","title":"1+1=?","options":["1","2"],"answer":"B"}
-{"type":"判断题","title":"地球是圆的","options":["正确","错误"],"answer":"A"}` 
-                            },
+                            { role: "system", content: activePrompt },
                             { role: "user", content: textChunk }
                         ],
-                        temperature: 0.0
+                        temperature: currentAppMode === 'vocab' ? 0.3 : 0.0 // 萃取生词需要一点创造力编干扰项
                     })
                 });
 
                 if (!response.ok) {
-                    if (response.status === 401) throw new Error("API Key 无效，请点击右上角重新设置。");
-                    if (response.status === 402) throw new Error("DeepSeek 账号额度不足。");
-                    throw new Error(`网络错误 (状态码: ${response.status})`);
+                    if (response.status === 401) throw new Error("API Key 无效，请重新设置。");
+                    throw new Error(`网络错误 (${response.status})`);
                 }
 
                 const reader = response.body.getReader();
@@ -353,7 +375,6 @@
                                 while ((newlineIndex = textBuffer.indexOf('\n')) !== -1) {
                                     let jsonStr = textBuffer.slice(0, newlineIndex).trim();
                                     textBuffer = textBuffer.slice(newlineIndex + 1);
-                                    
                                     jsonStr = jsonStr.replace(/^```json/, '').replace(/```$/, '').trim();
 
                                     if (jsonStr.startsWith('{') && jsonStr.endsWith('}')) {
@@ -379,38 +400,26 @@
                 }
                 
                 if (textBuffer.trim().startsWith('{') && textBuffer.trim().endsWith('}')) {
-                    try {
-                        questions.push(JSON.parse(textBuffer.trim()));
-                        document.getElementById('total-idx').textContent = questions.length;
-                    } catch(e) {}
+                    try { questions.push(JSON.parse(textBuffer.trim())); document.getElementById('total-idx').textContent = questions.length; } catch(e) {}
                 }
             } catch (error) {
-                if(questions.length === 0) {
-                    alert(`连接失败: ${error.message}`);
-                    resetUploadState();
-                }
+                if(questions.length === 0) { alert(`连接失败: ${error.message}`); resetUploadState(); }
             }
         }
 
+        // 渲染与交互逻辑不变，为了节省长度折叠处理
         function render() {
-            const q = questions[currentIdx];
-            selections = [];
+            const q = questions[currentIdx]; selections = [];
             document.getElementById('curr-idx').textContent = currentIdx + 1;
             document.getElementById('q-text').textContent = q.title.replace(/MARK_ANS|\*|√|（正确）|\(正确\)/g, '');
             document.getElementById('q-tag').textContent = q.type;
-            
-            if (q.type === '判断题' && (!q.options || q.options.length === 0)) {
-                q.options = ["正确", "错误"];
-            }
+            if (q.type === '判断题' && (!q.options || q.options.length === 0)) q.options = ["正确", "错误"];
             if (!q.options) q.options = [];
 
-            const list = document.getElementById('options-list');
-            list.innerHTML = "";
-            
+            const list = document.getElementById('options-list'); list.innerHTML = "";
             document.getElementById('ans-panel').classList.add('hidden');
             document.getElementById('next-question').classList.add('hidden');
             document.getElementById('multi-submit').classList.toggle('hidden', q.type !== '多选题');
-            
             document.getElementById('btn-explain').classList.remove('hidden');
             document.getElementById('ai-explain').classList.add('hidden');
             document.getElementById('ai-explain').textContent = '';
@@ -419,12 +428,9 @@
                 const btn = document.createElement('button');
                 btn.className = "option-btn w-full text-left p-5 rounded-2xl border border-slate-200 bg-white flex items-center mb-1";
                 btn.onclick = () => handleSelect(i);
-                
                 const char = String.fromCharCode(65 + i);
                 const text = opt.replace(/MARK_ANS|\*|√|（正确）|\(正确\)/g, '').replace(/^[A-Z][.\s、]*/, '').trim();
-                
-                btn.innerHTML = `<span class="w-7 h-7 rounded-lg bg-slate-50 border text-[10px] font-bold flex items-center justify-center mr-4 shrink-0">${char}</span>
-                                 <span class="text-sm font-medium text-slate-700">${text}</span>`;
+                btn.innerHTML = `<span class="w-7 h-7 rounded-lg bg-slate-50 border text-[10px] font-bold flex items-center justify-center mr-4 shrink-0">${char}</span><span class="text-sm font-medium text-slate-700">${text}</span>`;
                 list.appendChild(btn);
             });
         }
@@ -433,50 +439,26 @@
             const q = questions[currentIdx];
             if (q.type === '多选题') {
                 const btns = document.querySelectorAll('.option-btn');
-                if (selections.includes(idx)) {
-                    selections = selections.filter(i => i !== idx);
-                    btns[idx].classList.remove('selected-multi');
-                } else {
-                    selections.push(idx);
-                    btns[idx].classList.add('selected-multi');
-                }
-            } else {
-                showResult([idx]);
-            }
+                if (selections.includes(idx)) { selections = selections.filter(i => i !== idx); btns[idx].classList.remove('selected-multi'); } 
+                else { selections.push(idx); btns[idx].classList.add('selected-multi'); }
+            } else { showResult([idx]); }
         }
 
-        document.getElementById('multi-submit').onclick = () => {
-            if (selections.length === 0) return alert("请至少选择一个选项！");
-            showResult(selections);
-        };
+        document.getElementById('multi-submit').onclick = () => { if (selections.length === 0) return alert("请至少选择一个选项！"); showResult(selections); };
 
         function showResult(userIndices) {
-            const q = questions[currentIdx];
-            const btns = document.querySelectorAll('.option-btn');
+            const q = questions[currentIdx]; const btns = document.querySelectorAll('.option-btn');
             const correctStr = q.answer.toUpperCase().replace(/[^A-Z]/g, '');
-            
             const userAnsStr = userIndices.slice().sort().map(i => String.fromCharCode(65 + i)).join('');
 
-            if (userAnsStr === correctStr) {
-                correctCount++; 
-            } else {
-                wrongQuestions.push({
-                    question: q,
-                    userAns: userAnsStr,
-                    correctAns: correctStr
-                });
-            }
+            if (userAnsStr === correctStr) correctCount++; 
+            else wrongQuestions.push({ question: q, userAns: userAnsStr, correctAns: correctStr });
 
             btns.forEach((btn, i) => {
-                btn.onclick = null; 
-                btn.classList.add('cursor-default');
+                btn.onclick = null; btn.classList.add('cursor-default');
                 const char = String.fromCharCode(65 + i);
-                
-                if (correctStr.includes(char)) {
-                    btn.classList.add('border-emerald-500', 'bg-emerald-50');
-                } else if (userIndices.includes(i)) {
-                    btn.classList.add('border-rose-500', 'bg-rose-50');
-                }
+                if (correctStr.includes(char)) btn.classList.add('border-emerald-500', 'bg-emerald-50');
+                else if (userIndices.includes(i)) btn.classList.add('border-rose-500', 'bg-rose-50');
             });
 
             document.getElementById('correct-answer').textContent = correctStr;
@@ -493,34 +475,32 @@
         };
 
         async function fetchExplain(q, containerNode) {
-            containerNode.textContent = "✨ AI 正在思考中...";
+            containerNode.textContent = "✨ AI 正在生成深度解析...";
+            
+            // 生词模式的解析，不仅解释单词，还要给个例句
+            const explainPrompt = currentAppMode === 'quiz' 
+                ? "用50字以内简练地分析这道题的考点和正确选项的原因。"
+                : "请详细解释这个英文单词的含义、词性，并给出一个包含该单词的经典英文例句（附中文翻译）。";
+
             try {
                 const res = await fetch("https://api.deepseek.com/chat/completions", {
                     method: "POST",
                     headers: { "Content-Type": "application/json", "Authorization": `Bearer ${getApiKey()}` },
                     body: JSON.stringify({
                         model: "deepseek-chat",
-                        messages: [{role:"system", content:"用50字以内简练地分析这道题的考点和正确选项的原因。"}, {role:"user", content:`题目：${q.title}\n答案：${q.answer}`}]
+                        messages: [{role:"system", content: explainPrompt}, {role:"user", content:`题目：${q.title}\n答案：${q.answer}`}]
                     })
                 });
                 const data = await res.json();
                 containerNode.textContent = data.choices[0].message.content;
-            } catch (e) { 
-                containerNode.textContent = "暂无解析（网络异常或配置错误）。"; 
-            }
+            } catch (e) { containerNode.textContent = "暂无解析（网络异常或配置错误）。"; }
         }
 
         document.getElementById('next-question').onclick = () => {
-            if (currentIdx + 1 >= questions.length && !isStreamFinished) {
-                alert("你做题太快啦！稍等片刻，AI 正在后台飞速解析下一题...");
-                return;
-            }
+            if (currentIdx + 1 >= questions.length && !isStreamFinished) { alert("你做得太快啦！稍等片刻，AI 正在后台飞速解析..."); return; }
             currentIdx++;
-            if (currentIdx < questions.length) {
-                render();
-            } else { 
-                showSummary();
-            }
+            if (currentIdx < questions.length) render();
+            else showSummary();
         };
 
         function showSummary() {
@@ -528,30 +508,21 @@
             document.getElementById('progress-indicator').classList.add('hidden');
             document.getElementById('summary-area').classList.remove('hidden');
 
-            const totalQ = questions.length;
-            const score = Math.round((correctCount / totalQ) * 100);
-            
+            const totalQ = questions.length; const score = Math.round((correctCount / totalQ) * 100);
             document.getElementById('total-q-count').textContent = totalQ;
             document.getElementById('correct-q-count').textContent = correctCount;
             document.getElementById('final-score').innerHTML = `${score}<span class="text-xl text-indigo-400">分</span>`;
 
             const emojiNode = document.getElementById('score-emoji');
-            if (score === 100) emojiNode.textContent = "🏆";
-            else if (score >= 80) emojiNode.textContent = "🌟";
-            else if (score >= 60) emojiNode.textContent = "👍";
-            else emojiNode.textContent = "💪";
+            if (score === 100) emojiNode.textContent = "🏆"; else if (score >= 80) emojiNode.textContent = "🌟"; else if (score >= 60) emojiNode.textContent = "👍"; else emojiNode.textContent = "💪";
 
             if (wrongQuestions.length > 0) {
                 document.getElementById('mistake-book').classList.remove('hidden');
-                const listNode = document.getElementById('mistake-list');
-                listNode.innerHTML = '';
-
+                const listNode = document.getElementById('mistake-list'); listNode.innerHTML = '';
                 wrongQuestions.forEach((item, index) => {
                     const cleanTitle = item.question.title.replace(/MARK_ANS|\*|√|（正确）|\(正确\)/g, '');
-                    
                     const card = document.createElement('div');
                     card.className = "mistake-item bg-slate-50 border border-slate-100 p-5 rounded-2xl relative";
-                    
                     card.innerHTML = `
                         <div class="text-[10px] bg-slate-200 text-slate-500 px-2 py-0.5 rounded uppercase font-bold absolute top-4 right-4">${item.question.type}</div>
                         <h4 class="text-sm font-bold text-slate-800 leading-relaxed mb-4 pr-10">${index + 1}. ${cleanTitle}</h4>
@@ -562,16 +533,8 @@
                         <button class="fetch-explain-btn text-xs font-bold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 px-4 py-2 rounded-lg transition-colors w-full">✨ 获取 AI 深度解析</button>
                         <div class="mistake-explain hidden text-xs text-slate-500 bg-white p-4 rounded-xl border border-slate-100 mt-2 leading-relaxed"></div>
                     `;
-
-                    const btn = card.querySelector('.fetch-explain-btn');
-                    const explainContainer = card.querySelector('.mistake-explain');
-                    
-                    btn.onclick = () => {
-                        btn.classList.add('hidden');
-                        explainContainer.classList.remove('hidden');
-                        fetchExplain(item.question, explainContainer);
-                    };
-
+                    const btn = card.querySelector('.fetch-explain-btn'); const explainContainer = card.querySelector('.mistake-explain');
+                    btn.onclick = () => { btn.classList.add('hidden'); explainContainer.classList.remove('hidden'); fetchExplain(item.question, explainContainer); };
                     listNode.appendChild(card);
                 });
             }
