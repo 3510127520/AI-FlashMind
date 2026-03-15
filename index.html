@@ -255,7 +255,6 @@
 
     // ================= 后端代理请求：解析题目 =================
         async function parseQuestionsStream(textChunk, isLastChunk) {
-            
             const quizPrompt = `你是一个严格的题库结构化解析机器。将文本转换为 JSONL 格式（每行一个独立的JSON对象）。
 【最高准则】：严禁你自己解答！只提取原文中明示的答案。
 【格式红线】：
@@ -299,7 +298,7 @@
                 const reader = response.body.getReader();
                 const decoder = new TextDecoder("utf-8");
                 let textBuffer = ""; 
-                let sseBuffer = ""; // 🛡️ 【核心修复】：新增底层流数据缓冲区
+                let sseBuffer = ""; // 【暴力拼接器】
 
                 while (true) {
                     const { done, value } = await reader.read();
@@ -312,13 +311,13 @@
                         break; 
                     }
 
-                    // 🛡️ 【核心修复】：把新拿到的碎片拼接到缓冲区
+                    // 把收到的碎片先放进缓冲池
                     sseBuffer += decoder.decode(value, { stream: true });
                     const lines = sseBuffer.split('\n');
                     
-                    // 留下最后一段（可能被切断的不完整代码），等下一次循环拼接
+                    // 只要最后一行没结束，就扣留下来不处理，等下次碎片到了拼上去
                     sseBuffer = lines.pop(); 
-                    
+
                     for (const line of lines) {
                         const trimmedLine = line.trim();
                         if (trimmedLine.startsWith('data: ') && trimmedLine !== 'data: [DONE]') {
@@ -352,7 +351,7 @@
                                         } catch (parseErr) {}
                                     }
                                 }
-                            } catch (e) {} // 如果还有问题，忽略错误继续拼
+                            } catch (e) {} // 如果遇到被强行切断的 JSON，直接无视，绝不崩溃！
                         }
                     }
                 }
@@ -364,7 +363,6 @@
                 if(questions.length === 0) { alert(`连接失败: ${error.message}。请检查 Vercel 环境变量配置！`); resetUploadState(); }
             }
         }
-
         // ================= 渲染与交互逻辑 =================
         function render() {
             const q = questions[currentIdx]; selections = [];
