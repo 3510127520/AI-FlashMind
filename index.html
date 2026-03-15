@@ -253,8 +253,9 @@
             isStreamFinished = false; isFirstQuestionRendered = false;
         }
 
-        // ================= 后端代理请求：解析题目 =================
+    // ================= 后端代理请求：解析题目 =================
         async function parseQuestionsStream(textChunk, isLastChunk) {
+            
             const quizPrompt = `你是一个严格的题库结构化解析机器。将文本转换为 JSONL 格式（每行一个独立的JSON对象）。
 【最高准则】：严禁你自己解答！只提取原文中明示的答案。
 【格式红线】：
@@ -279,12 +280,11 @@
             const activePrompt = currentAppMode === 'quiz' ? quizPrompt : vocabPrompt;
 
             try {
-                // 【核心修改】全部发向你自己的 Vercel 后端！不再暴露任何 Key！
                 const response = await fetch("/api/chat", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
-                        model: "deepseek-chat", // 明确告诉后端我们要用满血版 DeepSeek
+                        model: "deepseek-chat", 
                         stream: true,
                         messages: [
                             { role: "system", content: activePrompt },
@@ -299,6 +299,7 @@
                 const reader = response.body.getReader();
                 const decoder = new TextDecoder("utf-8");
                 let textBuffer = ""; 
+                let sseBuffer = ""; // 🛡️ 【核心修复】：新增底层流数据缓冲区
 
                 while (true) {
                     const { done, value } = await reader.read();
@@ -311,13 +312,18 @@
                         break; 
                     }
 
-                    const chunk = decoder.decode(value, { stream: true });
-                    const lines = chunk.split('\n');
+                    // 🛡️ 【核心修复】：把新拿到的碎片拼接到缓冲区
+                    sseBuffer += decoder.decode(value, { stream: true });
+                    const lines = sseBuffer.split('\n');
+                    
+                    // 留下最后一段（可能被切断的不完整代码），等下一次循环拼接
+                    sseBuffer = lines.pop(); 
                     
                     for (const line of lines) {
-                        if (line.startsWith('data: ') && line !== 'data: [DONE]') {
+                        const trimmedLine = line.trim();
+                        if (trimmedLine.startsWith('data: ') && trimmedLine !== 'data: [DONE]') {
                             try {
-                                const data = JSON.parse(line.slice(6));
+                                const data = JSON.parse(trimmedLine.slice(6));
                                 const content = data.choices[0].delta.content || "";
                                 textBuffer += content;
 
@@ -346,7 +352,7 @@
                                         } catch (parseErr) {}
                                     }
                                 }
-                            } catch (e) {}
+                            } catch (e) {} // 如果还有问题，忽略错误继续拼
                         }
                     }
                 }
