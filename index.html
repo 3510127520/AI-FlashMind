@@ -22,6 +22,14 @@
         .mode-active { background-color: white; color: #4f46e5; box-shadow: 0 1px 3px rgba(0,0,0,0.1); font-weight: bold; }
         .mode-inactive { color: #64748b; font-weight: 500; }
         .mode-inactive:hover { color: #475569; }
+
+        /* 多邻国同款答错抖动动画 */
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            20%, 60% { transform: translateX(-6px); }
+            40%, 80% { transform: translateX(6px); }
+        }
+        .shake-anim { animation: shake 0.4s cubic-bezier(.36,.07,.19,.97) both; }
     </style>
 </head>
 <body class="bg-slate-50 min-h-screen text-slate-900 font-sans flex flex-col">
@@ -88,7 +96,7 @@
             <div id="bg-loading-tip" class="text-[11px] text-indigo-500 font-bold text-center bg-indigo-50 rounded-full py-1.5 mb-2 animate-pulse">
                 ⚡ DeepSeek 正在后台疯狂处理剩余内容，请先答题...
             </div>
-            <div class="bg-white p-7 rounded-[2.5rem] shadow-sm border border-slate-100 relative">
+            <div id="quiz-card" class="bg-white p-7 rounded-[2.5rem] shadow-sm border border-slate-100 relative">
                 <div id="q-tag" class="bg-indigo-100 text-indigo-700 text-[10px] px-3 py-1 rounded-md font-black mb-4 inline-block uppercase tracking-wider">单选题</div>
                 <h3 id="q-text" class="text-lg font-bold leading-relaxed mb-6 text-slate-800"></h3>
                 <div id="options-list" class="grid gap-3"></div>
@@ -137,7 +145,7 @@
         let wrongQuestions = [];  
         let currentAppMode = 'quiz';
 
-        // ================= 🎵 极客音效引擎 (Web Audio API) =================
+        // ================= 🎵 多邻国风格音效引擎 =================
         const AudioContext = window.AudioContext || window.webkitAudioContext;
         let audioCtx;
 
@@ -145,40 +153,43 @@
             if (!audioCtx) audioCtx = new AudioContext();
             if (audioCtx.state === 'suspended') audioCtx.resume();
 
-            const osc = audioCtx.createOscillator();
-            const gain = audioCtx.createGain();
-            osc.connect(gain);
-            gain.connect(audioCtx.destination);
             const t = audioCtx.currentTime;
 
+            function playTone(freq, waveType, startTime, duration, vol = 0.1, slideFreq = null) {
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = waveType;
+                
+                osc.frequency.setValueAtTime(freq, startTime);
+                if (slideFreq) {
+                    osc.frequency.exponentialRampToValueAtTime(slideFreq, startTime + duration);
+                }
+
+                gain.gain.setValueAtTime(0, startTime);
+                gain.gain.linearRampToValueAtTime(vol, startTime + 0.015);
+                gain.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
+
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start(startTime);
+                osc.stop(startTime + duration);
+            }
+
             if (type === 'click') {
-                osc.type = 'sine';
-                osc.frequency.setValueAtTime(600, t);
-                osc.frequency.exponentialRampToValueAtTime(300, t + 0.05);
-                gain.gain.setValueAtTime(0.1, t);
-                gain.gain.exponentialRampToValueAtTime(0.01, t + 0.05);
-                osc.start(t); osc.stop(t + 0.05);
+                playTone(400, 'sine', t, 0.1, 0.1, 200); 
             } else if (type === 'correct') {
-                osc.type = 'sine';
-                osc.frequency.setValueAtTime(600, t);
-                osc.frequency.setValueAtTime(800, t + 0.1); 
-                gain.gain.setValueAtTime(0.15, t);
-                gain.gain.linearRampToValueAtTime(0, t + 0.4);
-                osc.start(t); osc.stop(t + 0.4);
+                playTone(659.25, 'sine', t, 0.15, 0.1);       
+                playTone(880.00, 'sine', t + 0.1, 0.4, 0.15); 
+                playTone(1318.51, 'triangle', t, 0.15, 0.02); 
+                playTone(1760.00, 'triangle', t + 0.1, 0.4, 0.03);
             } else if (type === 'wrong') {
-                osc.type = 'sawtooth';
-                osc.frequency.setValueAtTime(150, t);
-                gain.gain.setValueAtTime(0.1, t);
-                gain.gain.linearRampToValueAtTime(0, t + 0.3);
-                osc.start(t); osc.stop(t + 0.3);
+                playTone(300, 'triangle', t, 0.35, 0.15, 150);
+                playTone(290, 'sawtooth', t, 0.35, 0.03, 140); 
             } else if (type === 'victory') {
-                osc.type = 'triangle';
-                osc.frequency.setValueAtTime(400, t);
-                osc.frequency.setValueAtTime(500, t + 0.1);
-                osc.frequency.setValueAtTime(800, t + 0.2);
-                gain.gain.setValueAtTime(0.2, t);
-                gain.gain.linearRampToValueAtTime(0, t + 0.6);
-                osc.start(t); osc.stop(t + 0.6);
+                playTone(523.25, 'sine', t, 0.15, 0.1);       
+                playTone(659.25, 'sine', t + 0.1, 0.15, 0.1); 
+                playTone(783.99, 'sine', t + 0.2, 0.15, 0.1); 
+                playTone(1046.50, 'sine', t + 0.3, 0.6, 0.15); 
             }
         }
 
@@ -229,7 +240,7 @@
         }
 
         function triggerUpload() {
-            playSound('click'); // 🎵 注入点：点击上传按钮音效
+            playSound('click'); 
             document.getElementById('file-input').click();
         }
 
@@ -450,7 +461,7 @@
         }
 
         function handleSelect(idx) {
-            playSound('click'); // 🎵 注入点：选中选项的“嗒”声
+            playSound('click'); 
             const q = questions[currentIdx];
             if (q.type === '多选题') {
                 const btns = document.querySelectorAll('.option-btn');
@@ -468,10 +479,14 @@
 
             if (userAnsStr === correctStr) {
                 correctCount++; 
-                playSound('correct'); // 🎵 注入点：答对的“叮咚”声
+                playSound('correct'); 
             } else {
                 wrongQuestions.push({ question: q, userAns: userAnsStr, correctAns: correctStr });
-                playSound('wrong'); // 🎵 注入点：答错的沉闷“嗡”声
+                playSound('wrong'); 
+                // 💥 触发多邻国同款答错抖动动画
+                const card = document.getElementById('quiz-card');
+                card.classList.add('shake-anim');
+                setTimeout(() => card.classList.remove('shake-anim'), 400);
             }
 
             btns.forEach((btn, i) => {
@@ -488,7 +503,7 @@
         }
 
         document.getElementById('btn-explain').onclick = () => {
-            playSound('click'); // 🎵 注入点：点击解析按钮
+            playSound('click'); 
             const q = questions[currentIdx];
             document.getElementById('btn-explain').classList.add('hidden');
             document.getElementById('ai-explain').classList.remove('hidden');
@@ -518,7 +533,7 @@
         }
 
         document.getElementById('next-question').onclick = () => {
-            playSound('click'); // 🎵 注入点：点击下一题
+            playSound('click'); 
             if (currentIdx + 1 >= questions.length && !isStreamFinished) { alert("你做得太快啦！稍等片刻，DeepSeek 正在后台飞速解析..."); return; }
             currentIdx++;
             if (currentIdx < questions.length) render();
@@ -526,7 +541,7 @@
         }
 
         function showSummary() {
-            playSound('victory'); // 🎵 注入点：完成练习的通关音效
+            playSound('victory'); 
             document.getElementById('quiz-area').classList.add('hidden');
             document.getElementById('progress-indicator').classList.add('hidden');
             document.getElementById('summary-area').classList.remove('hidden');
@@ -558,7 +573,7 @@
                     `;
                     const btn = card.querySelector('.fetch-explain-btn'); const explainContainer = card.querySelector('.mistake-explain');
                     btn.onclick = () => { 
-                        playSound('click'); // 🎵 注入点：点击错题解析
+                        playSound('click'); 
                         btn.classList.add('hidden'); 
                         explainContainer.classList.remove('hidden'); 
                         fetchExplain(item.question, explainContainer); 
