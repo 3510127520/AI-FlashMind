@@ -137,6 +137,51 @@
         let wrongQuestions = [];  
         let currentAppMode = 'quiz';
 
+        // ================= 🎵 极客音效引擎 (Web Audio API) =================
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        let audioCtx;
+
+        function playSound(type) {
+            if (!audioCtx) audioCtx = new AudioContext();
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            const t = audioCtx.currentTime;
+
+            if (type === 'click') {
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(600, t);
+                osc.frequency.exponentialRampToValueAtTime(300, t + 0.05);
+                gain.gain.setValueAtTime(0.1, t);
+                gain.gain.exponentialRampToValueAtTime(0.01, t + 0.05);
+                osc.start(t); osc.stop(t + 0.05);
+            } else if (type === 'correct') {
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(600, t);
+                osc.frequency.setValueAtTime(800, t + 0.1); 
+                gain.gain.setValueAtTime(0.15, t);
+                gain.gain.linearRampToValueAtTime(0, t + 0.4);
+                osc.start(t); osc.stop(t + 0.4);
+            } else if (type === 'wrong') {
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(150, t);
+                gain.gain.setValueAtTime(0.1, t);
+                gain.gain.linearRampToValueAtTime(0, t + 0.3);
+                osc.start(t); osc.stop(t + 0.3);
+            } else if (type === 'victory') {
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(400, t);
+                osc.frequency.setValueAtTime(500, t + 0.1);
+                osc.frequency.setValueAtTime(800, t + 0.2);
+                gain.gain.setValueAtTime(0.2, t);
+                gain.gain.linearRampToValueAtTime(0, t + 0.6);
+                osc.start(t); osc.stop(t + 0.6);
+            }
+        }
+
         // ================= UI 模式切换 =================
         function switchMode(mode) {
             if (currentAppMode === mode) return;
@@ -184,6 +229,7 @@
         }
 
         function triggerUpload() {
+            playSound('click'); // 🎵 注入点：点击上传按钮音效
             document.getElementById('file-input').click();
         }
 
@@ -251,7 +297,6 @@
         }
 
         // ================= 后端代理请求：解析题目 =================
-        // 注意：这里保留了极其重要的 async 关键字！
         async function parseQuestionsStream(textChunk, isLastChunk) {
             
             const quizPrompt = `你是一个严格的题库结构化解析机器。将文本转换为 JSONL 格式（每行一个独立的JSON对象）。
@@ -405,6 +450,7 @@
         }
 
         function handleSelect(idx) {
+            playSound('click'); // 🎵 注入点：选中选项的“嗒”声
             const q = questions[currentIdx];
             if (q.type === '多选题') {
                 const btns = document.querySelectorAll('.option-btn');
@@ -420,8 +466,13 @@
             const correctStr = (q.answer || "A").toUpperCase().replace(/[^A-Z]/g, '');
             const userAnsStr = userIndices.slice().sort().map(i => String.fromCharCode(65 + i)).join('');
 
-            if (userAnsStr === correctStr) correctCount++; 
-            else wrongQuestions.push({ question: q, userAns: userAnsStr, correctAns: correctStr });
+            if (userAnsStr === correctStr) {
+                correctCount++; 
+                playSound('correct'); // 🎵 注入点：答对的“叮咚”声
+            } else {
+                wrongQuestions.push({ question: q, userAns: userAnsStr, correctAns: correctStr });
+                playSound('wrong'); // 🎵 注入点：答错的沉闷“嗡”声
+            }
 
             btns.forEach((btn, i) => {
                 btn.onclick = null; btn.classList.add('cursor-default');
@@ -437,6 +488,7 @@
         }
 
         document.getElementById('btn-explain').onclick = () => {
+            playSound('click'); // 🎵 注入点：点击解析按钮
             const q = questions[currentIdx];
             document.getElementById('btn-explain').classList.add('hidden');
             document.getElementById('ai-explain').classList.remove('hidden');
@@ -466,6 +518,7 @@
         }
 
         document.getElementById('next-question').onclick = () => {
+            playSound('click'); // 🎵 注入点：点击下一题
             if (currentIdx + 1 >= questions.length && !isStreamFinished) { alert("你做得太快啦！稍等片刻，DeepSeek 正在后台飞速解析..."); return; }
             currentIdx++;
             if (currentIdx < questions.length) render();
@@ -473,6 +526,7 @@
         }
 
         function showSummary() {
+            playSound('victory'); // 🎵 注入点：完成练习的通关音效
             document.getElementById('quiz-area').classList.add('hidden');
             document.getElementById('progress-indicator').classList.add('hidden');
             document.getElementById('summary-area').classList.remove('hidden');
@@ -503,7 +557,12 @@
                         <div class="mistake-explain hidden text-xs text-slate-500 bg-white p-4 rounded-xl border border-slate-100 mt-2 leading-relaxed"></div>
                     `;
                     const btn = card.querySelector('.fetch-explain-btn'); const explainContainer = card.querySelector('.mistake-explain');
-                    btn.onclick = () => { btn.classList.add('hidden'); explainContainer.classList.remove('hidden'); fetchExplain(item.question, explainContainer); };
+                    btn.onclick = () => { 
+                        playSound('click'); // 🎵 注入点：点击错题解析
+                        btn.classList.add('hidden'); 
+                        explainContainer.classList.remove('hidden'); 
+                        fetchExplain(item.question, explainContainer); 
+                    };
                     listNode.appendChild(card);
                 });
             }
