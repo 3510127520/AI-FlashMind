@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
-    <title>AI-FlashMind | 智能题库&生词萃取</title>
+    <title>AI-FlashMind | 校园专属智能题库</title>
     <style>
         .option-btn { cursor: pointer; transition: all 0.2s ease-in-out; }
         .option-btn:active { transform: scale(0.98); }
@@ -32,7 +32,6 @@
                 <span class="text-xl" id="nav-emoji">🧠</span>
                 <h1 class="font-bold text-lg tracking-tight text-slate-800">AI-FlashMind</h1>
             </div>
-            
             <div class="flex items-center gap-3">
                 <div id="progress-indicator" class="hidden text-xs font-mono bg-indigo-50 px-3 py-1 rounded-full text-indigo-600 font-bold border border-indigo-100">
                     <span id="curr-idx">0</span> / <span id="total-idx">0</span>
@@ -43,9 +42,7 @@
     </nav>
 
     <main class="max-w-xl mx-auto px-4 py-8 flex-1 w-full">
-        
         <div id="setup-area" class="space-y-6">
-            
             <div class="bg-slate-200/60 p-1.5 rounded-2xl flex relative w-full mb-2">
                 <button id="btn-mode-quiz" onclick="switchMode('quiz')" class="flex-1 py-3 text-sm rounded-xl transition-all duration-300 mode-active z-10 flex items-center justify-center gap-2">
                     📝 考卷解析模式
@@ -253,8 +250,11 @@
             isStreamFinished = false; isFirstQuestionRendered = false;
         }
 
-    // ================= 后端代理请求：解析题目 =================
-        const quizPrompt = `你是一个严格的题库结构化解析机器。将文本转换为 JSONL 格式（每行一个独立的JSON对象）。
+        // ================= 后端代理请求：解析题目 =================
+        // 注意：这里保留了极其重要的 async 关键字！
+        async function parseQuestionsStream(textChunk, isLastChunk) {
+            
+            const quizPrompt = `你是一个严格的题库结构化解析机器。将文本转换为 JSONL 格式（每行一个独立的JSON对象）。
 【最高准则】：严禁你自己解答！只提取原文中明示的答案。
 【格式红线】：
 1. 绝对不要输出数组符号 [] 或 \`\`\`json。必须且只能用单行 JSON 输出一道题！
@@ -264,7 +264,6 @@
 5. 🚨【组合题特例】：如果原题包含类似 ①②③④⑤ 的条件陈述句，请将其【完整保留在 title 中】！options 数组仅提取最后的组合代号（如 ["①②③", "①④⑤"]）。
 6. 🚨【判断题特例】：无论原文如何标识（如 T/F、√/×、对/错），必须强制输出 "options":["正确","错误"]。如果原文答案是正确(T/√/对)，"answer" 必须为 "A"；如果是错误(F/×/错)，"answer" 必须为 "B"。
 格式示例：
-{"type":"单选题","title":"中国首都是哪里？","options":["上海","北京","广州","深圳"],"answer":"B"}
 {"type":"判断题","title":"当你发现银行卡丢失后应立即挂失。","options":["正确","错误"],"answer":"A"}`;
 
             const vocabPrompt = `你是一位专业的英语词汇老师。请阅读用户提供的英文文本，从中提取最核心、最高频或有一定难度的 3 到 5 个英语生词。
@@ -299,7 +298,7 @@
                 const reader = response.body.getReader();
                 const decoder = new TextDecoder("utf-8");
                 let textBuffer = ""; 
-                let sseBuffer = ""; // 【暴力拼接器】
+                let sseBuffer = ""; 
 
                 while (true) {
                     const { done, value } = await reader.read();
@@ -312,11 +311,8 @@
                         break; 
                     }
 
-                    // 把收到的碎片先放进缓冲池
                     sseBuffer += decoder.decode(value, { stream: true });
                     const lines = sseBuffer.split('\n');
-                    
-                    // 只要最后一行没结束，就扣留下来不处理，等下次碎片到了拼上去
                     sseBuffer = lines.pop(); 
 
                     for (const line of lines) {
@@ -352,7 +348,7 @@
                                         } catch (parseErr) {}
                                     }
                                 }
-                            } catch (e) {} // 如果遇到被强行切断的 JSON，直接无视，绝不崩溃！
+                            } catch (e) {} 
                         }
                     }
                 }
@@ -364,32 +360,48 @@
                 if(questions.length === 0) { alert(`连接失败: ${error.message}。请检查 Vercel 环境变量配置！`); resetUploadState(); }
             }
         }
-        // ================= 渲染与交互逻辑 =================
+
+        // ================= 防白屏渲染与交互逻辑 =================
         function render() {
-            const q = questions[currentIdx]; selections = [];
-            document.getElementById('curr-idx').textContent = currentIdx + 1;
-            document.getElementById('q-text').textContent = q.title.replace(/MARK_ANS|\*|√|（正确）|\(正确\)/g, '');
-            document.getElementById('q-tag').textContent = q.type;
-            if (q.type === '判断题' && (!q.options || q.options.length === 0)) q.options = ["正确", "错误"];
-            if (!q.options) q.options = [];
+            try {
+                if (questions.length === 0) return;
+                const q = questions[currentIdx]; selections = [];
+                document.getElementById('curr-idx').textContent = currentIdx + 1;
+                
+                const rawTitle = q.title || "（AI 偷懒了，没有生成这道题的题干，请直接看解析）";
+                document.getElementById('q-text').textContent = String(rawTitle).replace(/MARK_ANS|\*|√|（正确）|\(正确\)/g, '');
+                document.getElementById('q-tag').textContent = q.type || "单选题";
+                
+                if (!Array.isArray(q.options)) {
+                    if (q.type === '判断题') q.options = ["正确", "错误"];
+                    else if (typeof q.options === 'string') q.options = [q.options]; 
+                    else q.options = ["缺省选项A", "缺省选项B"]; 
+                }
 
-            const list = document.getElementById('options-list'); list.innerHTML = "";
-            document.getElementById('ans-panel').classList.add('hidden');
-            document.getElementById('next-question').classList.add('hidden');
-            document.getElementById('multi-submit').classList.toggle('hidden', q.type !== '多选题');
-            document.getElementById('btn-explain').classList.remove('hidden');
-            document.getElementById('ai-explain').classList.add('hidden');
-            document.getElementById('ai-explain').textContent = '';
+                const list = document.getElementById('options-list'); list.innerHTML = "";
+                document.getElementById('ans-panel').classList.add('hidden');
+                document.getElementById('next-question').classList.add('hidden');
+                document.getElementById('multi-submit').classList.toggle('hidden', q.type !== '多选题');
+                document.getElementById('btn-explain').classList.remove('hidden');
+                document.getElementById('ai-explain').classList.add('hidden');
+                document.getElementById('ai-explain').textContent = '';
 
-            q.options.forEach((opt, i) => {
-                const btn = document.createElement('button');
-                btn.className = "option-btn w-full text-left p-5 rounded-2xl border border-slate-200 bg-white flex items-center mb-1";
-                btn.onclick = () => handleSelect(i);
-                const char = String.fromCharCode(65 + i);
-                const text = opt.replace(/MARK_ANS|\*|√|（正确）|\(正确\)/g, '').replace(/^[A-Z][.\s、]*/, '').trim();
-                btn.innerHTML = `<span class="w-7 h-7 rounded-lg bg-slate-50 border text-[10px] font-bold flex items-center justify-center mr-4 shrink-0">${char}</span><span class="text-sm font-medium text-slate-700">${text}</span>`;
-                list.appendChild(btn);
-            });
+                q.options.forEach((opt, i) => {
+                    const btn = document.createElement('button');
+                    btn.className = "option-btn w-full text-left p-5 rounded-2xl border border-slate-200 bg-white flex items-center mb-1";
+                    btn.onclick = () => handleSelect(i);
+                    const char = String.fromCharCode(65 + i);
+                    const text = String(opt).replace(/MARK_ANS|\*|√|（正确）|\(正确\)/g, '').replace(/^[A-Z][.\s、]*/, '').trim();
+                    btn.innerHTML = `<span class="w-7 h-7 rounded-lg bg-slate-50 border text-[10px] font-bold flex items-center justify-center mr-4 shrink-0">${char}</span><span class="text-sm font-medium text-slate-700">${text}</span>`;
+                    list.appendChild(btn);
+                });
+            } catch (error) {
+                console.error("渲染题目时崩溃:", error);
+                alert("这道题 AI 生成的格式严重损坏，已自动为您跳过！");
+                currentIdx++;
+                if (currentIdx < questions.length) render();
+                else showSummary();
+            }
         }
 
         function handleSelect(idx) {
@@ -405,7 +417,7 @@
 
         function showResult(userIndices) {
             const q = questions[currentIdx]; const btns = document.querySelectorAll('.option-btn');
-            const correctStr = q.answer.toUpperCase().replace(/[^A-Z]/g, '');
+            const correctStr = (q.answer || "A").toUpperCase().replace(/[^A-Z]/g, '');
             const userAnsStr = userIndices.slice().sort().map(i => String.fromCharCode(65 + i)).join('');
 
             if (userAnsStr === correctStr) correctCount++; 
@@ -440,12 +452,11 @@
                 : "请详细解释这个英文单词的含义、词性，并给出一个包含该单词的经典英文例句（附中文翻译）。";
 
             try {
-                // 【核心修改】请求解析也走你自己的 Vercel 后端！
                 const res = await fetch("/api/chat", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
-                        model: "deepseek-chat", // 明确使用 deepseek-chat
+                        model: "deepseek-chat", 
                         messages: [{role:"system", content: explainPrompt}, {role:"user", content:`题目：${q.title}\n答案：${q.answer}`}]
                     })
                 });
@@ -459,7 +470,7 @@
             currentIdx++;
             if (currentIdx < questions.length) render();
             else showSummary();
-        };
+        }
 
         function showSummary() {
             document.getElementById('quiz-area').classList.add('hidden');
