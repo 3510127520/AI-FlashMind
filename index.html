@@ -112,6 +112,7 @@
                 </div>
             </div>
             <div class="flex gap-3">
+                <button id="prev-question" class="hidden flex-1 py-4 bg-slate-200 text-slate-600 rounded-2xl font-bold shadow-sm hover:bg-slate-300 transition-all">上一题</button>
                 <button id="multi-submit" class="hidden flex-1 py-4 bg-indigo-600 text-white rounded-2xl font-bold shadow-lg hover:bg-indigo-700 transition-all">确认提交</button>
                 <button id="next-question" class="hidden flex-1 py-4 bg-slate-900 text-white rounded-2xl font-bold shadow-lg hover:bg-slate-800 transition-all">下一题</button>
             </div>
@@ -437,6 +438,10 @@
                 const list = document.getElementById('options-list'); list.innerHTML = "";
                 document.getElementById('ans-panel').classList.add('hidden');
                 document.getElementById('next-question').classList.add('hidden');
+                
+                // 🆕 新增：控制“上一题”按钮的显示与隐藏（第一题时不显示）
+                document.getElementById('prev-question').classList.toggle('hidden', currentIdx === 0);
+                
                 document.getElementById('multi-submit').classList.toggle('hidden', q.type !== '多选题');
                 document.getElementById('btn-explain').classList.remove('hidden');
                 document.getElementById('ai-explain').classList.add('hidden');
@@ -483,7 +488,6 @@
             } else {
                 wrongQuestions.push({ question: q, userAns: userAnsStr, correctAns: correctStr });
                 playSound('wrong'); 
-                // 💥 触发多邻国同款答错抖动动画
                 const card = document.getElementById('quiz-card');
                 card.classList.add('shake-anim');
                 setTimeout(() => card.classList.remove('shake-anim'), 400);
@@ -508,6 +512,36 @@
             document.getElementById('btn-explain').classList.add('hidden');
             document.getElementById('ai-explain').classList.remove('hidden');
             fetchExplain(q, document.getElementById('ai-explain'));
+        };
+
+        // 🆕 新增：“时光倒流”撤销分数的逻辑
+        function rollbackScore(idx) {
+            const q = questions[idx];
+            // 查找这道题是不是在错题本里
+            const wrongIdx = wrongQuestions.findIndex(item => item.question === q);
+            if (wrongIdx !== -1) {
+                wrongQuestions.splice(wrongIdx, 1); // 如果答错了，从错题本里踢出去
+            } else {
+                if (correctCount > 0) correctCount--; // 如果没答错，说明答对了，扣掉正确分数
+            }
+        }
+
+        // 🆕 新增：点击“上一题”事件
+        document.getElementById('prev-question').onclick = () => {
+            playSound('click');
+            if (currentIdx === 0) return;
+
+            // 情况1：如果当前这道题你已经答过了（下一题按钮已经出来了），先撤销当前的得分
+            if (!document.getElementById('next-question').classList.contains('hidden')) {
+                rollbackScore(currentIdx);
+            }
+
+            // 情况2：时光倒流！把序号减1，并撤销上一题的得分，让你重新作答
+            currentIdx--;
+            rollbackScore(currentIdx);
+            
+            // 重新渲染上一题的干净界面
+            render();
         };
 
         // ================= 后端代理请求：生成解析 =================
