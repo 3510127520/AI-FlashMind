@@ -73,7 +73,7 @@
                     <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">💡 导入小贴士</h3>
                     <ul class="text-xs text-slate-600 space-y-1.5">
                         <li>• 推荐在正确选项后标注星号 <b>*</b> 或 <b>答案：A</b></li>
-                        <li>• 支持单选、多选与判断题的精准识别</li>
+                        <li>• 支持单选、多选、判断题与填空题的精准识别</li>
                         <li>• 长篇文档将自动切片处理，防内存崩溃</li>
                     </ul>
                 </div>
@@ -99,7 +99,13 @@
             <div id="quiz-card" class="bg-white p-7 rounded-[2.5rem] shadow-sm border border-slate-100 relative">
                 <div id="q-tag" class="bg-indigo-100 text-indigo-700 text-[10px] px-3 py-1 rounded-md font-black mb-4 inline-block uppercase tracking-wider">单选题</div>
                 <h3 id="q-text" class="text-lg font-bold leading-relaxed mb-6 text-slate-800"></h3>
+                
                 <div id="options-list" class="grid gap-3"></div>
+
+                <div id="blank-container" class="hidden my-4">
+                    <input type="text" id="blank-input" class="w-full p-5 border border-slate-200 rounded-2xl bg-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm font-medium transition-all" placeholder="请在此输入你的标准答案...">
+                </div>
+
                 <div id="ans-panel" class="hidden mt-8 pt-6 border-t border-dashed border-slate-200">
                     <div class="flex items-center justify-between mb-3">
                         <div class="flex items-center gap-2">
@@ -126,7 +132,7 @@
                 <p class="text-slate-500 font-medium mb-8 bg-slate-50 py-2 rounded-xl inline-block px-6 border border-slate-100">
                     共 <span id="total-q-count" class="font-bold text-slate-700">0</span> 题，答对 <span id="correct-q-count" class="font-bold text-emerald-500">0</span> 题
                 </p>
-                <button onclick="location.reload()" class="w-full bg-slate-900 hover:bg-slate-800 text-white py-4 rounded-2xl font-bold shadow-lg transition-colors">返回首页 / 载入新任务</button>
+                <button onclick="clearProgress(); location.reload();" class="w-full bg-slate-900 hover:bg-slate-800 text-white py-4 rounded-2xl font-bold shadow-lg transition-colors">返回首页 / 载入新任务</button>
             </div>
             <div id="mistake-book" class="hidden bg-white p-7 rounded-[2.5rem] shadow-sm border border-slate-200">
                 <h3 class="text-lg font-bold mb-6 flex items-center gap-2 border-b pb-4"><span class="text-rose-500 text-xl">📖</span> 你的专属错题本</h3>
@@ -142,9 +148,72 @@
         let selections = [];
         let isStreamFinished = false; 
         let isFirstQuestionRendered = false; 
-        let correctCount = 0;     
+        let correctCount = 0;      
         let wrongQuestions = [];  
         let currentAppMode = 'quiz';
+
+        // ================= 🆕 记忆引擎：本地数据隔离缓存读写 =================
+        function saveProgress() {
+            if (questions.length > 0) {
+                localStorage.setItem('fmind_questions', JSON.stringify(questions));
+                localStorage.setItem('fmind_currentIdx', currentIdx);
+                localStorage.setItem('fmind_correctCount', correctCount);
+                localStorage.setItem('fmind_wrongQuestions', JSON.stringify(wrongQuestions));
+                localStorage.setItem('fmind_currentAppMode', currentAppMode);
+                localStorage.setItem('fmind_isStreamFinished', isStreamFinished);
+                localStorage.setItem('fmind_isFirstQuestionRendered', isFirstQuestionRendered);
+            }
+        }
+
+        function clearProgress() {
+            localStorage.removeItem('fmind_questions');
+            localStorage.removeItem('fmind_currentIdx');
+            localStorage.removeItem('fmind_correctCount');
+            localStorage.removeItem('fmind_wrongQuestions');
+            localStorage.removeItem('fmind_currentAppMode');
+            localStorage.removeItem('fmind_isStreamFinished');
+            localStorage.removeItem('fmind_isFirstQuestionRendered');
+        }
+
+        // 页面打开时自动检测并无缝恢复断点
+        window.addEventListener('DOMContentLoaded', () => {
+            const savedQuestions = localStorage.getItem('fmind_questions');
+            if (savedQuestions) {
+                if (confirm('🧠 检测到您上次有未完成的系统刷题进度，是否恢复继续作答？\n（点击“取消”将清除历史缓存并重新导入）')) {
+                    try {
+                        questions = JSON.parse(savedQuestions);
+                        currentIdx = parseInt(localStorage.getItem('fmind_currentIdx') || '0');
+                        correctCount = parseInt(localStorage.getItem('fmind_correctCount') || '0');
+                        wrongQuestions = JSON.parse(localStorage.getItem('fmind_wrongQuestions') || '[]');
+                        currentAppMode = localStorage.getItem('fmind_currentAppMode') || 'quiz';
+                        isStreamFinished = localStorage.getItem('fmind_isStreamFinished') === 'true';
+                        isFirstQuestionRendered = localStorage.getItem('fmind_isFirstQuestionRendered') === 'true';
+                        
+                        switchMode(currentAppMode);
+                        
+                        document.getElementById('setup-area').classList.add('hidden');
+                        document.getElementById('quiz-area').classList.remove('hidden');
+                        document.getElementById('progress-indicator').classList.remove('hidden');
+                        document.getElementById('total-idx').textContent = questions.length;
+                        
+                        if (!isStreamFinished) {
+                            document.getElementById('bg-loading-bar').classList.remove('hidden');
+                            document.getElementById('bg-loading-tip').classList.remove('hidden');
+                            document.getElementById('bg-loading-tip').textContent = `⚡ 正在从上次断点静默加载余下题库中...`;
+                        } else {
+                            document.getElementById('bg-loading-bar').classList.add('hidden');
+                            document.getElementById('bg-loading-tip').classList.add('hidden');
+                        }
+                        
+                        render();
+                    } catch (e) {
+                        clearProgress();
+                    }
+                } else {
+                    clearProgress();
+                }
+            }
+        });
 
         // ================= 🎵 多邻国风格音效引擎 =================
         const AudioContext = window.AudioContext || window.webkitAudioContext;
@@ -196,7 +265,7 @@
 
         // ================= UI 模式切换 =================
         function switchMode(mode) {
-            if (currentAppMode === mode) return;
+            if (currentAppMode === mode && localStorage.getItem('fmind_questions') === null) return;
             currentAppMode = mode;
             
             const btnQuiz = document.getElementById('btn-mode-quiz');
@@ -217,7 +286,7 @@
                     <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">💡 导入小贴士</h3>
                     <ul class="text-xs text-slate-600 space-y-1.5">
                         <li>• 推荐在正确选项后标注星号 <b>*</b> 或 <b>答案：A</b></li>
-                        <li>• 支持单选、多选与判断题的精准识别</li>
+                        <li>• 支持单选、多选、判断题与填空题的精准识别</li>
                         <li>• 长篇文档将自动切片处理，防内存崩溃</li>
                     </ul>`;
                 uploadBtn.className = "w-full bg-indigo-600 hover:bg-indigo-700 text-white py-4 rounded-2xl font-bold shadow-lg shadow-indigo-200 transition-all flex justify-center items-center gap-2";
@@ -300,6 +369,7 @@
         }
 
         function resetUploadState() {
+            clearProgress();
             document.getElementById('loading-status').classList.add('hidden');
             document.getElementById('setup-area').style.pointerEvents = 'auto';
             document.getElementById('setup-area').classList.remove('opacity-50');
@@ -310,21 +380,24 @@
 
         // ================= 后端代理请求：解析题目 =================
         async function parseQuestionsStream(textChunk, isLastChunk) {
-            
+            // 🆕 完美扩充增强版 AI 提示词（融入填空题红线）
             const quizPrompt = `你是一个严格的题库结构化解析机器。将文本转换为 JSONL 格式（每行一个独立的JSON对象）。
 【最高准则】：严禁你自己解答！只提取原文中明示的答案（如标注了 * 号的选项，或文本末尾写明的答案）。
 【格式红线】：
 1. 绝对不要输出数组符号 [] 或 \`\`\`json。必须且只能用单行 JSON 输出一道题！
-2. options 字段必须是一个包含多个独立字符串的数组，每个选项单独占一个元素！
-3. options 数组中的文本绝对不要包含 A、B、C、D 等字母前缀！
-4. title 字段只能包含题干！绝对不能把选项文字混入 title 中。
-5. 🚨【组合题特例】：如果原题包含类似 ①②③④⑤ 的条件陈述句，请将其【完整保留在 title 中】！options 数组仅提取最后的组合代号（如 ["①②③", "①④⑤"]）。
-6. 🚨【判断题特例】：无论原文如何标识（如 T/F、√/×、对/错），必须强制输出 "options":["正确","错误"]。如果原文答案是正确(T/√/对)，"answer" 必须为 "A"；如果是错误(F/×/错)，"answer" 必须为 "B"。
-7. 🚨【多选题特例】：如果原题有多个正确答案，"type" 必须填 "多选题"，且 "answer" 字段必须将所有正确选项的字母【按字母顺序紧凑拼在一起】输出（例如 "ABC"、"BD"），绝对不要加逗号、空格或用数组包裹！
+2. options 字段在单选/多选/判断中必须是一个包含多个独立字符串的数组，每个选项单独占一个元素！
+3. 🚨【去除前缀】：options 数组中的文本绝对不要包含 A、B、C、D 等字母前缀！同时必须去掉题干开头的题号（如 "38、" 或 "1."）。
+4. 🚨【单行选项拆分】：如果选项没有换行，而是全部跟在题干后面连成了一行（如："题目 A.选项1 B.选项2"），你必须智能地将它们切分开，提取到 options 中。
+5. title 字段只能包含纯题干！绝对不能把选项文字混入 title 中。
+6. 🚨【组合题特例】：如果原题包含类似 ①②③④⑤ 的条件陈述句，请将其【完整保留在 title 中】！options 数组仅提取最后的组合代号（如 ["①②③", "①④⑤"]）。
+7. 🚨【判断题特例】：无论原文如何标识（如 T/F、√/×、对/错），必须强制输出 "options":["正确","错误"]。如果原文答案是正确(T/√/对)，"answer" 必须为 "A"；如果是错误(F/×/错)，"answer" 必须为 "B"。
+8. 🚨【多选题特例】：如果原题有多个正确答案，"type" 必须填 "多选题"，且 "answer" 字段必须将所有正确选项的字母【按字母顺序紧凑拼在一起】输出（例如 "ABC"、"BD"），绝对不要加逗号、空格或用数组包裹！
+9. 🚨【填空题特例】：如果原题是填空题（没有选项，只有题干和答案），"type" 必须填 "填空题"，"options" 必须输出为空数组 []，"answer" 字段直接填入原文给出的文本答案（如果是多空答案，用空格或斜杠 / 隔开）。
 
 格式示例：
 {"type":"单选题","title":"中国古代四大发明不包括以下哪项？","options":["造纸术","指南针","高铁","火药"],"answer":"C"}
-{"type":"多选题","title":"以下属于计算机输入设备的有？","options":["鼠标","键盘","显示器","打印机"],"answer":"AB"}`;
+{"type":"多选题","title":"以下属于计算机输入设备的有？","options":["鼠标","键盘","显示器","打印机"],"answer":"AB"}
+{"type":"填空题","title":"离散傅里叶变换的英文缩写是（）。","options":[],"answer":"DFT"}`;
 
             const vocabPrompt = `你是一位专业的英语词汇老师。请阅读用户提供的英文文本，从中提取最核心、最高频或有一定难度的 3 到 5 个英语生词。
 然后，为你提取的每个生词，生成一道英语词意考查单选题。
@@ -367,6 +440,7 @@
                             isStreamFinished = true;
                             document.getElementById('bg-loading-bar').classList.add('hidden');
                             document.getElementById('bg-loading-tip').classList.add('hidden');
+                            saveProgress(); // 传输终点触发缓存归档
                         }
                         break; 
                     }
@@ -396,6 +470,7 @@
                                             const q = JSON.parse(jsonStr);
                                             questions.push(q);
                                             document.getElementById('total-idx').textContent = questions.length;
+                                            saveProgress(); // 每进来一题，自动刷新本地存档
 
                                             if (!isFirstQuestionRendered) {
                                                 isFirstQuestionRendered = true;
@@ -414,54 +489,81 @@
                 }
                 
                 if (textBuffer.trim().startsWith('{') && textBuffer.trim().endsWith('}')) {
-                    try { questions.push(JSON.parse(textBuffer.trim())); document.getElementById('total-idx').textContent = questions.length; } catch(e) {}
+                    try { 
+                        questions.push(JSON.parse(textBuffer.trim())); 
+                        document.getElementById('total-idx').textContent = questions.length; 
+                        saveProgress();
+                    } catch(e) {}
                 }
             } catch (error) {
                 if(questions.length === 0) { alert(`连接失败: ${error.message}。请检查 Vercel 环境变量配置！`); resetUploadState(); }
             }
         }
 
-        // ================= 防白屏渲染与交互逻辑 =================
+        // ================= 动态自适应防白屏渲染与交互逻辑 =================
         function render() {
             try {
                 if (questions.length === 0) return;
+                saveProgress(); // 每次执行翻页，强制重置缓存断点位置
+
                 const q = questions[currentIdx]; selections = [];
                 document.getElementById('curr-idx').textContent = currentIdx + 1;
                 
-                const rawTitle = q.title || "（AI 偷懒了，没有生成这道题的题干，请直接看解析）";
+                const rawTitle = q.title || "（AI 暂未提取到本题题干）";
                 document.getElementById('q-text').textContent = String(rawTitle).replace(/MARK_ANS|\*|√|（正确）|\(正确\)/g, '');
                 document.getElementById('q-tag').textContent = q.type || "单选题";
                 
-                if (!Array.isArray(q.options)) {
-                    if (q.type === '判断题') q.options = ["正确", "错误"];
-                    else if (typeof q.options === 'string') q.options = [q.options]; 
-                    else q.options = ["缺省选项A", "缺省选项B"]; 
-                }
+                const list = document.getElementById('options-list'); 
+                const blankContainer = document.getElementById('blank-container');
+                const blankInput = document.getElementById('blank-input');
+                const multiSubmit = document.getElementById('multi-submit');
 
-                const list = document.getElementById('options-list'); list.innerHTML = "";
                 document.getElementById('ans-panel').classList.add('hidden');
                 document.getElementById('next-question').classList.add('hidden');
-                
-                // 🆕 新增：控制“上一题”按钮的显示与隐藏（第一题时不显示）
                 document.getElementById('prev-question').classList.toggle('hidden', currentIdx === 0);
-                
-                document.getElementById('multi-submit').classList.toggle('hidden', q.type !== '多选题');
                 document.getElementById('btn-explain').classList.remove('hidden');
                 document.getElementById('ai-explain').classList.add('hidden');
                 document.getElementById('ai-explain').textContent = '';
 
-                q.options.forEach((opt, i) => {
-                    const btn = document.createElement('button');
-                    btn.className = "option-btn w-full text-left p-5 rounded-2xl border border-slate-200 bg-white flex items-center mb-1";
-                    btn.onclick = () => handleSelect(i);
-                    const char = String.fromCharCode(65 + i);
-                    const text = String(opt).replace(/MARK_ANS|\*|√|（正确）|\(正确\)/g, '').replace(/^[A-Z][.\s、]*/, '').trim();
-                    btn.innerHTML = `<span class="w-7 h-7 rounded-lg bg-slate-50 border text-[10px] font-bold flex items-center justify-center mr-4 shrink-0">${char}</span><span class="text-sm font-medium text-slate-700">${text}</span>`;
-                    list.appendChild(btn);
-                });
+                // 🆕 分流自适应渲染：填空题 VS 选择题
+                if (q.type === '填空题') {
+                    list.innerHTML = "";
+                    list.classList.add('hidden');
+                    blankContainer.classList.remove('hidden');
+                    
+                    blankInput.value = '';
+                    blankInput.disabled = false;
+                    blankInput.className = "w-full p-5 border border-slate-200 rounded-2xl bg-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm font-medium transition-all";
+                    
+                    multiSubmit.classList.remove('hidden');
+                    multiSubmit.textContent = "确认提交答案";
+                } else {
+                    list.classList.remove('hidden');
+                    blankContainer.classList.add('hidden');
+                    list.innerHTML = "";
+                    
+                    multiSubmit.textContent = "确认提交";
+                    multiSubmit.classList.toggle('hidden', q.type !== '多选题');
+
+                    if (!Array.isArray(q.options)) {
+                        if (q.type === '判断题') q.options = ["正确", "错误"];
+                        else if (typeof q.options === 'string') q.options = [q.options]; 
+                        else q.options = ["缺省选项A", "缺省选项B"]; 
+                    }
+
+                    q.options.forEach((opt, i) => {
+                        const btn = document.createElement('button');
+                        btn.className = "option-btn w-full text-left p-5 rounded-2xl border border-slate-200 bg-white flex items-center mb-1";
+                        btn.onclick = () => handleSelect(i);
+                        const char = String.fromCharCode(65 + i);
+                        const text = String(opt).replace(/MARK_ANS|\*|√|（正确）|\(正确\)/g, '').replace(/^[A-Z][.\s、]*/, '').trim();
+                        btn.innerHTML = `<span class="w-7 h-7 rounded-lg bg-slate-50 border text-[10px] font-bold flex items-center justify-center mr-4 shrink-0">${char}</span><span class="text-sm font-medium text-slate-700">${text}</span>`;
+                        list.appendChild(btn);
+                    });
+                }
             } catch (error) {
                 console.error("渲染题目时崩溃:", error);
-                alert("这道题 AI 生成的格式严重损坏，已自动为您跳过！");
+                alert("这道题 AI 生成的格式异常，已自动为您跳过！");
                 currentIdx++;
                 if (currentIdx < questions.length) render();
                 else showSummary();
@@ -478,14 +580,56 @@
             } else { showResult([idx]); }
         }
 
-        document.getElementById('multi-submit').onclick = () => { if (selections.length === 0) return alert("请至少选择一个选项！"); showResult(selections); };
+        // 统一控制中心点击提交
+        document.getElementById('multi-submit').onclick = () => { 
+            const q = questions[currentIdx];
+            if (q.type === '填空题') {
+                const userInputRaw = document.getElementById('blank-input').value.trim();
+                if (!userInputRaw) return alert("请输入你的答案后再提交！");
+                showResult(userInputRaw);
+            } else {
+                if (selections.length === 0) return alert("请至少选择一个选项！"); 
+                showResult(selections); 
+            }
+        };
 
-        function showResult(userIndices) {
-            const q = questions[currentIdx]; const btns = document.querySelectorAll('.option-btn');
-            const correctStr = (q.answer || "A").toUpperCase().replace(/[^A-Z]/g, '');
-            const userAnsStr = userIndices.slice().sort().map(i => String.fromCharCode(65 + i)).join('');
+        // 核心动态判卷判分引擎
+        function showResult(userInput) {
+            const q = questions[currentIdx]; 
+            const btns = document.querySelectorAll('.option-btn');
+            const blankInput = document.getElementById('blank-input');
+            
+            let isCorrect = false;
+            let correctStr = "";
+            let userAnsStr = "";
 
-            if (userAnsStr === correctStr) {
+            // 🆕 填空题文本大小写模糊智能比对
+            if (q.type === '填空题') {
+                correctStr = String(q.answer || "").trim();
+                userAnsStr = String(userInput).trim();
+                isCorrect = (userAnsStr.toLowerCase() === correctStr.toLowerCase() && userAnsStr !== "");
+                
+                blankInput.disabled = true;
+                if (isCorrect) {
+                    blankInput.className = "w-full p-5 border-2 border-emerald-500 rounded-2xl bg-emerald-50 text-emerald-700 font-bold text-sm focus:outline-none transition-all";
+                } else {
+                    blankInput.className = "w-full p-5 border-2 border-rose-500 rounded-2xl bg-rose-50 text-rose-700 font-bold text-sm focus:outline-none transition-all";
+                }
+            } else {
+                // 选择题比对
+                correctStr = (q.answer || "A").toUpperCase().replace(/[^A-Z]/g, '');
+                userAnsStr = userInput.slice().sort().map(i => String.fromCharCode(65 + i)).join('');
+                isCorrect = (userAnsStr === correctStr);
+
+                btns.forEach((btn, i) => {
+                    btn.onclick = null; btn.classList.add('cursor-default');
+                    const char = String.fromCharCode(65 + i);
+                    if (correctStr.includes(char)) btn.classList.add('border-emerald-500', 'bg-emerald-50');
+                    else if (userInput.includes(i)) btn.classList.add('border-rose-500', 'bg-rose-50');
+                });
+            }
+
+            if (isCorrect) {
                 correctCount++; 
                 playSound('correct'); 
             } else {
@@ -496,17 +640,12 @@
                 setTimeout(() => card.classList.remove('shake-anim'), 400);
             }
 
-            btns.forEach((btn, i) => {
-                btn.onclick = null; btn.classList.add('cursor-default');
-                const char = String.fromCharCode(65 + i);
-                if (correctStr.includes(char)) btn.classList.add('border-emerald-500', 'bg-emerald-50');
-                else if (userIndices.includes(i)) btn.classList.add('border-rose-500', 'bg-rose-50');
-            });
-
             document.getElementById('correct-answer').textContent = correctStr;
             document.getElementById('ans-panel').classList.remove('hidden');
             document.getElementById('next-question').classList.remove('hidden');
             document.getElementById('multi-submit').classList.add('hidden');
+            
+            saveProgress(); // 状态评定后即刻锁死写入本地，防作弊防丢分
         }
 
         document.getElementById('btn-explain').onclick = () => {
@@ -517,37 +656,43 @@
             fetchExplain(q, document.getElementById('ai-explain'));
         };
 
-        // 🆕 新增：“时光倒流”撤销分数的逻辑
+        // 🆕 修复核心：升级标题内容比对，防止对象引用断裂导致错题撤销失效
         function rollbackScore(idx) {
             const q = questions[idx];
-            // 查找这道题是不是在错题本里
-            const wrongIdx = wrongQuestions.findIndex(item => item.question === q);
+            const wrongIdx = wrongQuestions.findIndex(item => item.question.title === q.title);
             if (wrongIdx !== -1) {
-                wrongQuestions.splice(wrongIdx, 1); // 如果答错了，从错题本里踢出去
+                wrongQuestions.splice(wrongIdx, 1); 
             } else {
-                if (correctCount > 0) correctCount--; // 如果没答错，说明答对了，扣掉正确分数
+                if (correctCount > 0) correctCount--; 
             }
         }
 
-        // 🆕 新增：点击“上一题”事件
+        // 时光倒流事件
         document.getElementById('prev-question').onclick = () => {
             playSound('click');
             if (currentIdx === 0) return;
 
-            // 情况1：如果当前这道题你已经答过了（下一题按钮已经出来了），先撤销当前的得分
             if (!document.getElementById('next-question').classList.contains('hidden')) {
                 rollbackScore(currentIdx);
             }
 
-            // 情况2：时光倒流！把序号减1，并撤销上一题的得分，让你重新作答
             currentIdx--;
             rollbackScore(currentIdx);
-            
-            // 重新渲染上一题的干净界面
             render();
         };
 
-        // ================= 后端代理请求：生成解析 =================
+        // 🆕 下一题翻页调度器（修复补全）
+        document.getElementById('next-question').onclick = () => {
+            playSound('click');
+            currentIdx++;
+            if (currentIdx < questions.length) {
+                render();
+            } else {
+                showSummary();
+            }
+        };
+
+        // ================= 后端代理请求：生成解析（修复补全） =================
         async function fetchExplain(q, containerNode) {
             containerNode.textContent = "✨ DeepSeek 正在生成深度解析...";
             
@@ -561,62 +706,98 @@
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
                         model: "deepseek-chat", 
-                        messages: [{role:"system", content: explainPrompt}, {role:"user", content:`题目：${q.title}\n答案：${q.answer}`}]
+                        stream: true,
+                        messages: [
+                            { role: "system", content: explainPrompt },
+                            { role: "user", content: JSON.stringify(q) }
+                        ]
                     })
                 });
-                const data = await res.json();
-                containerNode.textContent = data.choices[0].message.content;
-            } catch (e) { containerNode.textContent = "暂无解析（网络异常或服务器未响应）。"; }
+
+                if (!res.ok) throw new Error("解析包加载失败");
+
+                const reader = res.body.getReader();
+                const decoder = new TextDecoder("utf-8");
+                containerNode.textContent = "";
+                let sseBuffer = "";
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+
+                    sseBuffer += decoder.decode(value, { stream: true });
+                    const lines = sseBuffer.split('\n');
+                    sseBuffer = lines.pop();
+
+                    for (const line of lines) {
+                        const trimmedLine = line.trim();
+                        if (trimmedLine.startsWith('data: ') && trimmedLine !== 'data: [DONE]') {
+                            try {
+                                const data = JSON.parse(trimmedLine.slice(6));
+                                const content = data.choices[0].delta.content || "";
+                                containerNode.textContent += content;
+                            } catch (e) {}
+                        }
+                    }
+                }
+            } catch (error) {
+                containerNode.textContent = `无法加载解析: ${error.message}`;
+            }
         }
 
-        document.getElementById('next-question').onclick = () => {
-            playSound('click'); 
-            if (currentIdx + 1 >= questions.length && !isStreamFinished) { alert("你做得太快啦！稍等片刻，DeepSeek 正在后台飞速解析..."); return; }
-            currentIdx++;
-            if (currentIdx < questions.length) render();
-            else showSummary();
-        }
-
+        // ================= 📊 练习结算页大面板（修复补全） =================
         function showSummary() {
-            playSound('victory'); 
-            document.getElementById('quiz-area').classList.add('hidden');
-            document.getElementById('progress-indicator').classList.add('hidden');
-            document.getElementById('summary-area').classList.remove('hidden');
+            clearProgress(); // 通关结算完成，彻底销毁历史缓存
+            playSound('victory');
 
-            const totalQ = questions.length; const score = Math.round((correctCount / totalQ) * 100);
-            document.getElementById('total-q-count').textContent = totalQ;
-            document.getElementById('correct-q-count').textContent = correctCount;
+            document.getElementById('quiz-area').classList.add('hidden');
+            document.getElementById('summary-area').classList.remove('hidden');
+            document.getElementById('progress-indicator').classList.add('hidden');
+
+            const score = questions.length > 0 ? Math.round((correctCount / questions.length) * 100) : 0;
             document.getElementById('final-score').innerHTML = `${score}<span class="text-xl text-indigo-400">分</span>`;
 
             const emojiNode = document.getElementById('score-emoji');
-            if (score === 100) emojiNode.textContent = "🏆"; else if (score >= 80) emojiNode.textContent = "🌟"; else if (score >= 60) emojiNode.textContent = "👍"; else emojiNode.textContent = "💪";
+            if (score >= 90) emojiNode.textContent = "🎉";
+            else if (score >= 60) emojiNode.textContent = "👍";
+            else emojiNode.textContent = "☕";
+
+            document.getElementById('total-q-count').textContent = questions.length;
+            document.getElementById('correct-q-count').textContent = correctCount;
+
+            const mistakeBook = document.getElementById('mistake-book');
+            const mistakeList = document.getElementById('mistake-list');
+            mistakeList.innerHTML = "";
 
             if (wrongQuestions.length > 0) {
-                document.getElementById('mistake-book').classList.remove('hidden');
-                const listNode = document.getElementById('mistake-list'); listNode.innerHTML = '';
+                mistakeBook.classList.remove('hidden');
                 wrongQuestions.forEach((item, index) => {
-                    const cleanTitle = item.question.title.replace(/MARK_ANS|\*|√|（正确）|\(正确\)/g, '');
-                    const card = document.createElement('div');
-                    card.className = "mistake-item bg-slate-50 border border-slate-100 p-5 rounded-2xl relative";
-                    card.innerHTML = `
-                        <div class="text-[10px] bg-slate-200 text-slate-500 px-2 py-0.5 rounded uppercase font-bold absolute top-4 right-4">${item.question.type}</div>
-                        <h4 class="text-sm font-bold text-slate-800 leading-relaxed mb-4 pr-10">${index + 1}. ${cleanTitle}</h4>
-                        <div class="flex items-center gap-4 text-xs font-medium bg-white p-3 rounded-xl border border-slate-100 mb-3">
-                            <div class="text-rose-500 flex-1">你的答案：${item.userAns || '未选择'}</div>
-                            <div class="text-emerald-500 flex-1 border-l pl-4">正确答案：${item.correctAns}</div>
+                    const div = document.createElement('div');
+                    div.className = "mistake-item bg-slate-50 p-5 rounded-2xl border border-slate-100 space-y-2";
+                    
+                    let optionsHtml = "";
+                    if (Array.isArray(item.question.options) && item.question.options.length > 0) {
+                        optionsHtml = `<div class="grid gap-1.5 mt-2 text-xs text-slate-600">`;
+                        item.question.options.forEach((opt, idx) => {
+                            const char = String.fromCharCode(65 + idx);
+                            optionsHtml += `<div><b>${char}.</b> ${opt}</div>`;
+                        });
+                        optionsHtml += `</div>`;
+                    }
+
+                    div.innerHTML = `
+                        <div class="text-xs font-bold text-slate-400">错题 ${index + 1} [${item.question.type || '单选题'}]</div>
+                        <div class="text-sm font-bold text-slate-800">${item.question.title}</div>
+                        ${optionsHtml}
+                        <div class="flex gap-4 text-xs mt-2 border-t pt-2 border-dashed border-slate-200">
+                            <span class="text-rose-600 font-medium">你的答案：<b class="font-mono">${item.userAns || '未作答'}</b></span>
+                            <span class="text-emerald-600 font-medium">正确答案：<b class="font-mono">${item.correctAns}</b></span>
                         </div>
-                        <button class="fetch-explain-btn text-xs font-bold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 px-4 py-2 rounded-lg transition-colors w-full">✨ 获取 AI 深度解析</button>
-                        <div class="mistake-explain hidden text-xs text-slate-500 bg-white p-4 rounded-xl border border-slate-100 mt-2 leading-relaxed"></div>
                     `;
-                    const btn = card.querySelector('.fetch-explain-btn'); const explainContainer = card.querySelector('.mistake-explain');
-                    btn.onclick = () => { 
-                        playSound('click'); 
-                        btn.classList.add('hidden'); 
-                        explainContainer.classList.remove('hidden'); 
-                        fetchExplain(item.question, explainContainer); 
-                    };
-                    listNode.appendChild(card);
+                    mistakeList.appendChild(div);
                 });
+            } else {
+                mistakeBook.classList.add('hidden');
             }
         }
     </script>
