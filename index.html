@@ -1,387 +1,375 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <script src="https://cdn.jsdelivr.net/npm/mammoth@1.8.0/mammoth.browser.min.js"></script>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <title>AI-FlashMind | 校园专属智能题库</title>
-    <style>
-        .option-btn { cursor: pointer; transition: all 0.2s ease-in-out; }
-        .option-btn:active { transform: scale(0.98); }
-        .selected-multi { border-color: #6366f1 !important; background-color: #f5f3ff !important; box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2); }
-        button:disabled { opacity: 0.6; cursor: not-allowed; transform: none !important; }
-        .loading-bar { background: linear-gradient(90deg, #e2e8f0 25%, #818cf8 50%, #e2e8f0 75%); background-size: 200% 100%; animation: loading-wave 1.5s infinite; }
-        @keyframes loading-wave { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
-        .mistake-item { animation: fadeIn 0.5s ease-out forwards; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-        ::-webkit-scrollbar { width: 6px; }
-        ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
-        
-        .mode-active { background-color: white; color: #4f46e5; box-shadow: 0 1px 3px rgba(0,0,0,0.1); font-weight: bold; }
-        .mode-inactive { color: #64748b; font-weight: 500; }
-        .mode-inactive:hover { color: #475569; }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<script src="https://cdn.jsdelivr.net/npm/mammoth@1.8.0/mammoth.browser.min.js"></script>
+<script src="https://cdn.tailwindcss.com"></script>
+<title>AI-FlashMind | 校园专属智能题库</title>
+<style>
+.option-btn { cursor: pointer; transition: all 0.2s ease-in-out; }
+.option-btn:active { transform: scale(0.98); }
+.selected-multi { border-color: #6366f1 !important; background-color: #f5f3ff !important; box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2); }
+button:disabled { opacity: 0.6; cursor: not-allowed; transform: none !important; }
+.loading-bar { background: linear-gradient(90deg, #e2e8f0 25%, #818cf8 50%, #e2e8f0 75%); background-size: 200% 100%; animation: loading-wave 1.5s infinite; }
+@keyframes loading-wave { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+.mistake-item { animation: fadeIn 0.5s ease-out forwards; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
 
-        /* 多邻国同款答错抖动动画 */
-        @keyframes shake {
-            0%, 100% { transform: translateX(0); }
-            20%, 60% { transform: translateX(-6px); }
-            40%, 80% { transform: translateX(6px); }
-        }
-        .shake-anim { animation: shake 0.4s cubic-bezier(.36,.07,.19,.97) both; }
-    </style>
+.mode-active { background-color: white; color: #4f46e5; box-shadow: 0 1px 3px rgba(0,0,0,0.1); font-weight: bold; }
+.mode-inactive { color: #64748b; font-weight: 500; }
+.mode-inactive:hover { color: #475569; }
+@keyframes shake {
+0%, 100% { transform: translateX(0); }
+20%, 60% { transform: translateX(-6px); }
+40%, 80% { transform: translateX(6px); }
+}
+.shake-anim { animation: shake 0.4s cubic-bezier(.36,.07,.19,.97) both; }
+
+/* 🆕 答题卡网格布局 */
+.answer-card-grid {
+display: grid;
+grid-template-columns: repeat(auto-fill, minmax(40px, 1fr));
+gap: 8px;
+}
+</style>
 </head>
 <body class="bg-slate-50 min-h-screen text-slate-900 font-sans flex flex-col">
+<nav class="bg-white/80 backdrop-blur-md border-b px-5 py-4 sticky top-0 z-50 shadow-sm">
+<div class="max-w-xl mx-auto flex justify-between items-center">
+<div class="flex items-center gap-2">
+<span class="text-xl" id="nav-emoji">🧠</span>
+<h1 class="font-bold text-lg tracking-tight text-slate-800">AI-FlashMind</h1>
+</div>
+<div class="flex items-center gap-3">
+<div id="progress-indicator" class="hidden text-xs font-mono bg-indigo-50 px-3 py-1 rounded-full text-indigo-600 font-bold border border-indigo-100">
+<span id="curr-idx">0</span> / <span id="total-idx">0</span>
+</div>
+</div>
+</div>
+<div id="bg-loading-bar" class="hidden h-1 w-full absolute bottom-0 left-0 loading-bar"></div>
+</nav>
+<main class="max-w-xl mx-auto px-4 py-8 flex-1 w-full">
+<div id="setup-area" class="space-y-6">
+<div class="bg-slate-200/60 p-1.5 rounded-2xl flex relative w-full mb-2">
+<button id="btn-mode-quiz" onclick="switchMode('quiz')" class="flex-1 py-3 text-sm rounded-xl transition-all duration-300 mode-active z-10 flex items-center justify-center gap-2">
+📝 考卷解析模式
+</button>
+<button id="btn-mode-vocab" onclick="switchMode('vocab')" class="flex-1 py-3 text-sm rounded-xl transition-all duration-300 mode-inactive z-10 flex items-center justify-center gap-2">
+📖 英语生词萃取
+</button>
+</div>
+<div class="bg-white p-8 md:p-10 rounded-[2.5rem] shadow-sm border border-slate-200 text-center relative overflow-hidden transition-all" id="intro-card">
+<div class="w-16 h-16 bg-indigo-50 rounded-2xl flex items-center justify-center mx-auto mb-6" id="intro-icon">
+<span class="text-3xl">✨</span>
+</div>
+<h2 class="text-2xl font-bold mb-3 text-slate-800 tracking-tight" id="intro-title">一键将静态文档，变成专属题库</h2>
+<p class="text-slate-500 text-sm leading-relaxed mb-8" id="intro-desc">
+导入 Word 或 TXT 文档，AI 自动提取原卷题目生成交互式练习。支持即时判卷与深度错题解析。
+</p>
 
-    <nav class="bg-white/80 backdrop-blur-md border-b px-5 py-4 sticky top-0 z-50 shadow-sm">
-        <div class="max-w-xl mx-auto flex justify-between items-center">
-            <div class="flex items-center gap-2">
-                <span class="text-xl" id="nav-emoji">🧠</span>
-                <h1 class="font-bold text-lg tracking-tight text-slate-800">AI-FlashMind</h1>
-            </div>
-            <div class="flex items-center gap-3">
-                <div id="progress-indicator" class="hidden text-xs font-mono bg-indigo-50 px-3 py-1 rounded-full text-indigo-600 font-bold border border-indigo-100">
-                    <span id="curr-idx">0</span> / <span id="total-idx">0</span>
-                </div>
-            </div>
-        </div>
-        <div id="bg-loading-bar" class="hidden h-1 w-full absolute bottom-0 left-0 loading-bar"></div>
-    </nav>
+<div class="bg-slate-50 rounded-2xl p-4 mb-8 text-left border border-slate-100" id="intro-tips">
+<h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">💡 导入小贴士</h3>
+<ul class="text-xs text-slate-600 space-y-1.5">
+<li>• 推荐在正确选项后标注星号 <b>*</b> 或 <b>答案：A</b></li>
+<li>• 支持单选、多选、判断题与填空题的精准识别</li>
+<li>• 长篇文档将自动切片处理，防内存崩溃</li>
+</ul>
+</div>
+<input type="file" id="file-input" accept=".txt,.docx" class="hidden">
+<button onclick="triggerUpload()" id="upload-btn"
+class="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-4 rounded-2xl font-bold shadow-lg shadow-indigo-200 transition-all flex justify-center items-center gap-2">
+选择文件并开始解析
+<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" /></svg>
+</button>
+</div>
 
-    <main class="max-w-xl mx-auto px-4 py-8 flex-1 w-full">
-        <div id="setup-area" class="space-y-6">
-            <div class="bg-slate-200/60 p-1.5 rounded-2xl flex relative w-full mb-2">
-                <button id="btn-mode-quiz" onclick="switchMode('quiz')" class="flex-1 py-3 text-sm rounded-xl transition-all duration-300 mode-active z-10 flex items-center justify-center gap-2">
-                    📝 考卷解析模式
-                </button>
-                <button id="btn-mode-vocab" onclick="switchMode('vocab')" class="flex-1 py-3 text-sm rounded-xl transition-all duration-300 mode-inactive z-10 flex items-center justify-center gap-2">
-                    📖 英语生词萃取
-                </button>
-            </div>
+<div id="loading-status" class="hidden flex flex-col items-center gap-3 py-4">
+<div class="w-6 h-6 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
+<p class="text-indigo-600 font-bold text-sm animate-pulse" id="loading-text">正在处理文件...</p>
+</div>
+</div>
+<div id="quiz-area" class="hidden space-y-4">
+<div id="bg-loading-tip" class="text-[11px] text-indigo-500 font-bold text-center bg-indigo-50 rounded-full py-1.5 mb-2 animate-pulse">
+⚡ DeepSeek 正在后台疯狂处理剩余内容，请先答题...
+</div>
+<div id="quiz-card" class="bg-white p-7 rounded-[2.5rem] shadow-sm border border-slate-100 relative">
+<div id="q-tag" class="bg-indigo-100 text-indigo-700 text-[10px] px-3 py-1 rounded-md font-black mb-4 inline-block uppercase tracking-wider">单选题</div>
+<h3 id="q-text" class="text-lg font-bold leading-relaxed mb-6 text-slate-800"></h3>
 
-            <div class="bg-white p-8 md:p-10 rounded-[2.5rem] shadow-sm border border-slate-200 text-center relative overflow-hidden transition-all" id="intro-card">
-                <div class="w-16 h-16 bg-indigo-50 rounded-2xl flex items-center justify-center mx-auto mb-6" id="intro-icon">
-                    <span class="text-3xl">✨</span>
-                </div>
-                <h2 class="text-2xl font-bold mb-3 text-slate-800 tracking-tight" id="intro-title">一键将静态文档，变成专属题库</h2>
-                <p class="text-slate-500 text-sm leading-relaxed mb-8" id="intro-desc">
-                    导入 Word 或 TXT 文档，AI 自动提取原卷题目生成交互式练习。支持即时判卷与深度错题解析。
-                </p>
-                
-                <div class="bg-slate-50 rounded-2xl p-4 mb-8 text-left border border-slate-100" id="intro-tips">
-                    <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">💡 导入小贴士</h3>
-                    <ul class="text-xs text-slate-600 space-y-1.5">
-                        <li>• 推荐在正确选项后标注星号 <b>*</b> 或 <b>答案：A</b></li>
-                        <li>• 支持单选、多选、判断题与填空题的精准识别</li>
-                        <li>• 长篇文档将自动切片处理，防内存崩溃</li>
-                    </ul>
-                </div>
+<div id="options-list" class="grid gap-3"></div>
+<div id="blank-container" class="hidden my-4">
+<input type="text" id="blank-input" class="w-full p-5 border border-slate-200 rounded-2xl bg-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm font-medium transition-all" placeholder="请在此输入你的标准答案...">
+</div>
+<div id="ans-panel" class="hidden mt-8 pt-6 border-t border-dashed border-slate-200">
+<div class="flex items-center justify-between mb-3">
+<div class="flex items-center gap-2">
+<span class="bg-emerald-100 text-emerald-700 text-xs px-2 py-1 rounded font-bold">正确答案</span>
+<span id="correct-answer" class="text-xl font-black text-emerald-600 tracking-widest"></span>
+</div>
+<button id="btn-explain" class="text-xs text-indigo-600 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-full font-bold transition-colors">✨ AI 智能解析</button>
+</div>
+<div id="ai-explain" class="hidden text-[13px] text-slate-500 bg-slate-50 p-4 rounded-2xl border border-slate-100 leading-relaxed italic"></div>
+</div>
+</div>
+<div class="flex gap-3 flex-wrap">
+<button id="prev-question" class="hidden flex-1 py-4 bg-slate-200 text-slate-600 rounded-2xl font-bold shadow-sm hover:bg-slate-300 transition-all">上一题</button>
+<button id="multi-submit" class="hidden flex-1 py-4 bg-indigo-600 text-white rounded-2xl font-bold shadow-lg hover:bg-indigo-700 transition-all">确认提交</button>
+<button id="shuffle-question" onclick="handleSpecificShuffle()" class="flex-1 py-4 bg-amber-500 text-white rounded-2xl font-bold shadow-md hover:bg-amber-600 transition-all flex items-center justify-center gap-1">🎲 特定打乱</button>
+<button id="next-question" class="hidden flex-1 py-4 bg-slate-900 text-white rounded-2xl font-bold shadow-lg hover:bg-slate-800 transition-all">下一题</button>
+</div>
 
-                <input type="file" id="file-input" accept=".txt,.docx" class="hidden">
-                <button onclick="triggerUpload()" id="upload-btn"
-                        class="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-4 rounded-2xl font-bold shadow-lg shadow-indigo-200 transition-all flex justify-center items-center gap-2">
-                    选择文件并开始解析
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" /></svg>
-                </button>
-            </div>
-            
-            <div id="loading-status" class="hidden flex flex-col items-center gap-3 py-4">
-                <div class="w-6 h-6 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
-                <p class="text-indigo-600 font-bold text-sm animate-pulse" id="loading-text">正在处理文件...</p>
-            </div>
-        </div>
+<div id="answer-card-panel" class="bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-100 mt-4">
+<h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">🧩 快捷答题卡跳题</h3>
+<div id="answer-card" class="answer-card-grid"></div>
+</div>
+</div>
+<div id="summary-area" class="hidden space-y-6">
+<div class="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-200 text-center">
+<div class="text-5xl mb-4" id="score-emoji">🎉</div>
+<h2 class="text-2xl font-bold mb-2 text-slate-800">练习完成！</h2>
+<div class="text-[4rem] font-black tracking-tight text-indigo-600 my-4" id="final-score">100<span class="text-xl text-indigo-400">分</span></div>
+<p class="text-slate-500 font-medium mb-8 bg-slate-50 py-2 rounded-xl inline-block px-6 border border-slate-100">
+共 <span id="total-q-count" class="font-bold text-slate-700">0</span> 题，答对 <span id="correct-q-count" class="font-bold text-emerald-500">0</span> 题
+</p>
+<button onclick="clearProgress(); location.reload();" class="w-full bg-slate-900 hover:bg-slate-800 text-white py-4 rounded-2xl font-bold shadow-lg transition-colors">返回首页 / 载入新任务</button>
+</div>
+<div id="mistake-book" class="hidden bg-white p-7 rounded-[2.5rem] shadow-sm border border-slate-200">
+<h3 class="text-lg font-bold mb-6 flex items-center gap-2 border-b pb-4"><span class="text-rose-500 text-xl">📖</span> 你的专属错题本</h3>
+<div id="mistake-list" class="space-y-5"></div>
+</div>
+</div>
+</main>
+<script>
+// ================= 全局状态与配置 =================
+let originalRawQuestions = []; // 🆕 新增：存储最纯净没有被打乱的解析总数据备份
+let questions = [];
+let currentIdx = 0;
+let selections = [];
+let isStreamFinished = false;
+let isFirstQuestionRendered = false;
+let correctCount = 0;
+let wrongQuestions = [];
+let currentAppMode = 'quiz';
+// ================= 🆕 记忆引擎：本地数据隔离缓存读写 =================
+function saveProgress() {
+if (questions.length > 0) {
+localStorage.setItem('fmind_questions', JSON.stringify(questions));
+localStorage.setItem('fmind_originalRawQuestions', JSON.stringify(originalRawQuestions)); // 🆕 同步存储原始结构备份
+localStorage.setItem('fmind_currentIdx', currentIdx);
+localStorage.setItem('fmind_correctCount', correctCount);
+localStorage.setItem('fmind_wrongQuestions', JSON.stringify(wrongQuestions));
+localStorage.setItem('fmind_currentAppMode', currentAppMode);
+localStorage.setItem('fmind_isStreamFinished', isStreamFinished);
+localStorage.setItem('fmind_isFirstQuestionRendered', isFirstQuestionRendered);
+}
+}
+function clearProgress() {
+localStorage.removeItem('fmind_questions');
+localStorage.removeItem('fmind_originalRawQuestions');
+localStorage.removeItem('fmind_currentIdx');
+localStorage.removeItem('fmind_correctCount');
+localStorage.removeItem('fmind_wrongQuestions');
+localStorage.removeItem('fmind_currentAppMode');
+localStorage.removeItem('fmind_isStreamFinished');
+localStorage.removeItem('fmind_isFirstQuestionRendered');
+}
+// 页面打开时自动检测并无缝恢复断点
+window.addEventListener('DOMContentLoaded', () => {
+const savedQuestions = localStorage.getItem('fmind_questions');
+if (savedQuestions) {
+if (confirm('🧠 检测到您上次有未完成的系统刷题进度，是否恢复继续作答？\n（点击“取消”将清除历史缓存并重新导入）')) {
+try {
+questions = JSON.parse(savedQuestions);
+originalRawQuestions = JSON.parse(localStorage.getItem('fmind_originalRawQuestions') || '[]'); // 恢复备份
+currentIdx = parseInt(localStorage.getItem('fmind_currentIdx') || '0');
+correctCount = parseInt(localStorage.getItem('fmind_correctCount') || '0');
+wrongQuestions = JSON.parse(localStorage.getItem('fmind_wrongQuestions') || '[]');
+currentAppMode = localStorage.getItem('fmind_currentAppMode') || 'quiz';
+isStreamFinished = localStorage.getItem('fmind_isStreamFinished') === 'true';
+isFirstQuestionRendered = localStorage.getItem('fmind_isFirstQuestionRendered') === 'true';
 
-        <div id="quiz-area" class="hidden space-y-4">
-            <div id="bg-loading-tip" class="text-[11px] text-indigo-500 font-bold text-center bg-indigo-50 rounded-full py-1.5 mb-2 animate-pulse">
-                ⚡ DeepSeek 正在后台疯狂处理剩余内容，请先答题...
-            </div>
-            <div id="quiz-card" class="bg-white p-7 rounded-[2.5rem] shadow-sm border border-slate-100 relative">
-                <div id="q-tag" class="bg-indigo-100 text-indigo-700 text-[10px] px-3 py-1 rounded-md font-black mb-4 inline-block uppercase tracking-wider">单选题</div>
-                <h3 id="q-text" class="text-lg font-bold leading-relaxed mb-6 text-slate-800"></h3>
-                
-                <div id="options-list" class="grid gap-3"></div>
+switchMode(currentAppMode);
 
-                <div id="blank-container" class="hidden my-4">
-                    <input type="text" id="blank-input" class="w-full p-5 border border-slate-200 rounded-2xl bg-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm font-medium transition-all" placeholder="请在此输入你的标准答案...">
-                </div>
+document.getElementById('setup-area').classList.add('hidden');
+document.getElementById('quiz-area').classList.remove('hidden');
+document.getElementById('progress-indicator').classList.remove('hidden');
+document.getElementById('total-idx').textContent = questions.length;
 
-                <div id="ans-panel" class="hidden mt-8 pt-6 border-t border-dashed border-slate-200">
-                    <div class="flex items-center justify-between mb-3">
-                        <div class="flex items-center gap-2">
-                            <span class="bg-emerald-100 text-emerald-700 text-xs px-2 py-1 rounded font-bold">正确答案</span>
-                            <span id="correct-answer" class="text-xl font-black text-emerald-600 tracking-widest"></span>
-                        </div>
-                        <button id="btn-explain" class="text-xs text-indigo-600 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-full font-bold transition-colors">✨ AI 智能解析</button>
-                    </div>
-                    <div id="ai-explain" class="hidden text-[13px] text-slate-500 bg-slate-50 p-4 rounded-2xl border border-slate-100 leading-relaxed italic"></div>
-                </div>
-            </div>
-            <div class="flex gap-3">
-                <button id="prev-question" class="hidden flex-1 py-4 bg-slate-200 text-slate-600 rounded-2xl font-bold shadow-sm hover:bg-slate-300 transition-all">上一题</button>
-                <button id="multi-submit" class="hidden flex-1 py-4 bg-indigo-600 text-white rounded-2xl font-bold shadow-lg hover:bg-indigo-700 transition-all">确认提交</button>
-                <button id="next-question" class="hidden flex-1 py-4 bg-slate-900 text-white rounded-2xl font-bold shadow-lg hover:bg-slate-800 transition-all">下一题</button>
-            </div>
-        </div>
+if (!isStreamFinished) {
+document.getElementById('bg-loading-bar').classList.remove('hidden');
+document.getElementById('bg-loading-tip').classList.remove('hidden');
+document.getElementById('bg-loading-tip').textContent = `⚡ 正在从上次断点静默加载余下题库中...`;
+} else {
+document.getElementById('bg-loading-bar').classList.add('hidden');
+document.getElementById('bg-loading-tip').classList.add('hidden');
+}
 
-        <div id="summary-area" class="hidden space-y-6">
-            <div class="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-200 text-center">
-                <div class="text-5xl mb-4" id="score-emoji">🎉</div>
-                <h2 class="text-2xl font-bold mb-2 text-slate-800">练习完成！</h2>
-                <div class="text-[4rem] font-black tracking-tight text-indigo-600 my-4" id="final-score">100<span class="text-xl text-indigo-400">分</span></div>
-                <p class="text-slate-500 font-medium mb-8 bg-slate-50 py-2 rounded-xl inline-block px-6 border border-slate-100">
-                    共 <span id="total-q-count" class="font-bold text-slate-700">0</span> 题，答对 <span id="correct-q-count" class="font-bold text-emerald-500">0</span> 题
-                </p>
-                <button onclick="clearProgress(); location.reload();" class="w-full bg-slate-900 hover:bg-slate-800 text-white py-4 rounded-2xl font-bold shadow-lg transition-colors">返回首页 / 载入新任务</button>
-            </div>
-            <div id="mistake-book" class="hidden bg-white p-7 rounded-[2.5rem] shadow-sm border border-slate-200">
-                <h3 class="text-lg font-bold mb-6 flex items-center gap-2 border-b pb-4"><span class="text-rose-500 text-xl">📖</span> 你的专属错题本</h3>
-                <div id="mistake-list" class="space-y-5"></div>
-            </div>
-        </div>
-    </main>
+render();
+} catch (e) {
+clearProgress();
+}
+} else {
+clearProgress();
+}
+}
+});
+// ================= 🎵 多邻国风格音效引擎 =================
+const AudioContext = window.AudioContext || window.webkitAudioContext;
+let audioCtx;
+function playSound(type) {
+if (!audioCtx) audioCtx = new AudioContext();
+if (audioCtx.state === 'suspended') audioCtx.resume();
+const t = audioCtx.currentTime;
+function playTone(freq, waveType, startTime, duration, vol = 0.1, slideFreq = null) {
+const osc = audioCtx.createOscillator();
+const gain = audioCtx.createGain();
+osc.type = waveType;
 
-    <script>
-        // ================= 全局状态与配置 =================
-        let questions = [];
-        let currentIdx = 0;
-        let selections = [];
-        let isStreamFinished = false; 
-        let isFirstQuestionRendered = false; 
-        let correctCount = 0;      
-        let wrongQuestions = [];  
-        let currentAppMode = 'quiz';
+osc.frequency.setValueAtTime(freq, startTime);
+if (slideFreq) {
+osc.frequency.exponentialRampToValueAtTime(slideFreq, startTime + duration);
+}
+gain.gain.setValueAtTime(0, startTime);
+gain.gain.linearRampToValueAtTime(vol, startTime + 0.015);
+gain.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
+osc.connect(gain);
+gain.connect(audioCtx.destination);
+osc.start(startTime);
+osc.stop(startTime + duration);
+}
+if (type === 'click') {
+playTone(400, 'sine', t, 0.1, 0.1, 200);
+} else if (type === 'correct') {
+playTone(659.25, 'sine', t, 0.15, 0.1);
+playTone(880.00, 'sine', t + 0.1, 0.4, 0.15);
+playTone(1318.51, 'triangle', t, 0.15, 0.02);
+playTone(1760.00, 'triangle', t + 0.1, 0.4, 0.03);
+} else if (type === 'wrong') {
+playTone(300, 'triangle', t, 0.35, 0.15, 150);
+playTone(290, 'sawtooth', t, 0.35, 0.03, 140);
+} else if (type === 'victory') {
+playTone(523.25, 'sine', t, 0.15, 0.1);
+playTone(659.25, 'sine', t + 0.1, 0.15, 0.1);
+playTone(783.99, 'sine', t + 0.2, 0.15, 0.1);
+playTone(1046.50, 'sine', t + 0.3, 0.6, 0.15);
+}
+}
+// ================= UI 模式切换 =================
+function switchMode(mode) {
+if (currentAppMode === mode && localStorage.getItem('fmind_questions') === null) return;
+currentAppMode = mode;
 
-        // ================= 🆕 记忆引擎：本地数据隔离缓存读写 =================
-        function saveProgress() {
-            if (questions.length > 0) {
-                localStorage.setItem('fmind_questions', JSON.stringify(questions));
-                localStorage.setItem('fmind_currentIdx', currentIdx);
-                localStorage.setItem('fmind_correctCount', correctCount);
-                localStorage.setItem('fmind_wrongQuestions', JSON.stringify(wrongQuestions));
-                localStorage.setItem('fmind_currentAppMode', currentAppMode);
-                localStorage.setItem('fmind_isStreamFinished', isStreamFinished);
-                localStorage.setItem('fmind_isFirstQuestionRendered', isFirstQuestionRendered);
-            }
-        }
+const btnQuiz = document.getElementById('btn-mode-quiz');
+const btnVocab = document.getElementById('btn-mode-vocab');
+const icon = document.getElementById('intro-icon');
+const title = document.getElementById('intro-title');
+const desc = document.getElementById('intro-desc');
+const tips = document.getElementById('intro-tips');
+const uploadBtn = document.getElementById('upload-btn');
 
-        function clearProgress() {
-            localStorage.removeItem('fmind_questions');
-            localStorage.removeItem('fmind_currentIdx');
-            localStorage.removeItem('fmind_correctCount');
-            localStorage.removeItem('fmind_wrongQuestions');
-            localStorage.removeItem('fmind_currentAppMode');
-            localStorage.removeItem('fmind_isStreamFinished');
-            localStorage.removeItem('fmind_isFirstQuestionRendered');
-        }
+if (mode === 'quiz') {
+btnQuiz.className = "flex-1 py-3 text-sm rounded-xl transition-all duration-300 mode-active z-10 flex items-center justify-center gap-2";
+btnVocab.className = "flex-1 py-3 text-sm rounded-xl transition-all duration-300 mode-inactive z-10 flex items-center justify-center gap-2";
+icon.innerHTML = '<span class="text-3xl">✨</span>';
+title.textContent = "一键将静态文档，变成专属题库";
+desc.textContent = "导入 Word 或 TXT 文档，AI 自动提取原卷题目生成交互式练习。支持即时判卷与深度错题解析。";
+tips.innerHTML = `
+<h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">💡 导入小贴士</h3>
+<ul class="text-xs text-slate-600 space-y-1.5">
+<li>• 推荐在正确选项后标注星号 <b>*</b> 或 <b>答案：A</b></li>
+<li>• 支持单选、多选、判断题与填空题的精准识别</li>
+<li>• 长篇文档将自动切片处理，防内存崩溃</li>
+</ul>`;
+uploadBtn.className = "w-full bg-indigo-600 hover:bg-indigo-700 text-white py-4 rounded-2xl font-bold shadow-lg shadow-indigo-200 transition-all flex justify-center items-center gap-2";
+uploadBtn.innerHTML = `选择题库文件并解析 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" /></svg>`;
+} else {
+btnVocab.className = "flex-1 py-3 text-sm rounded-xl transition-all duration-300 mode-active z-10 flex items-center justify-center gap-2";
+btnQuiz.className = "flex-1 py-3 text-sm rounded-xl transition-all duration-300 mode-inactive z-10 flex items-center justify-center gap-2";
+icon.innerHTML = '<span class="text-3xl">📖</span>';
+title.textContent = "萃取文章生词，生成记忆闪卡";
+desc.textContent = "导入英语外刊、原版书章节或阅读理解。AI 将化身英语老师，自动为你提取核心高频生词，并生成选择题考查记忆。";
+tips.innerHTML = `
+<h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">💡 萃取小贴士</h3>
+<ul class="text-xs text-slate-600 space-y-1.5">
+<li>• 随便复制一篇全英文文章存为 .txt 上传即可</li>
+<li>• AI 会根据上下文语境生成对应的中文释义干扰项</li>
+<li>• 每1500字符最多提取 5 个高难度核心词汇</li>
+</ul>`;
+uploadBtn.className = "w-full bg-emerald-600 hover:bg-emerald-700 text-white py-4 rounded-2xl font-bold shadow-lg shadow-emerald-200 transition-all flex justify-center items-center gap-2";
+uploadBtn.innerHTML = `选择英文文章并萃取 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" /></svg>`;
+}
+}
+function triggerUpload() {
+playSound('click');
+document.getElementById('file-input').click();
+}
+// ================= 文件处理 =================
+document.getElementById('file-input').onchange = async (e) => {
+const file = e.target.files[0];
+if (!file) return;
+document.getElementById('setup-area').style.pointerEvents = 'none';
+document.getElementById('setup-area').classList.add('opacity-50');
+document.getElementById('loading-status').classList.remove('hidden');
+const loadingText = document.getElementById('loading-text');
 
-        // 页面打开时自动检测并无缝恢复断点
-        window.addEventListener('DOMContentLoaded', () => {
-            const savedQuestions = localStorage.getItem('fmind_questions');
-            if (savedQuestions) {
-                if (confirm('🧠 检测到您上次有未完成的系统刷题进度，是否恢复继续作答？\n（点击“取消”将清除历史缓存并重新导入）')) {
-                    try {
-                        questions = JSON.parse(savedQuestions);
-                        currentIdx = parseInt(localStorage.getItem('fmind_currentIdx') || '0');
-                        correctCount = parseInt(localStorage.getItem('fmind_correctCount') || '0');
-                        wrongQuestions = JSON.parse(localStorage.getItem('fmind_wrongQuestions') || '[]');
-                        currentAppMode = localStorage.getItem('fmind_currentAppMode') || 'quiz';
-                        isStreamFinished = localStorage.getItem('fmind_isStreamFinished') === 'true';
-                        isFirstQuestionRendered = localStorage.getItem('fmind_isFirstQuestionRendered') === 'true';
-                        
-                        switchMode(currentAppMode);
-                        
-                        document.getElementById('setup-area').classList.add('hidden');
-                        document.getElementById('quiz-area').classList.remove('hidden');
-                        document.getElementById('progress-indicator').classList.remove('hidden');
-                        document.getElementById('total-idx').textContent = questions.length;
-                        
-                        if (!isStreamFinished) {
-                            document.getElementById('bg-loading-bar').classList.remove('hidden');
-                            document.getElementById('bg-loading-tip').classList.remove('hidden');
-                            document.getElementById('bg-loading-tip').textContent = `⚡ 正在从上次断点静默加载余下题库中...`;
-                        } else {
-                            document.getElementById('bg-loading-bar').classList.add('hidden');
-                            document.getElementById('bg-loading-tip').classList.add('hidden');
-                        }
-                        
-                        render();
-                    } catch (e) {
-                        clearProgress();
-                    }
-                } else {
-                    clearProgress();
-                }
-            }
-        });
+let content = "";
+try {
+loadingText.textContent = "正在读取文档...";
+if (file.name.endsWith('.docx')) {
+const arrayBuffer = await file.arrayBuffer();
+const result = await mammoth.convertToHtml({ arrayBuffer });
+let htmlStr = result.value.replace(/color:\s*(#ff0000|#FF0000|red|rgb\(255,\s*0,\s*0\))/gi, "MARK_ANS");
+htmlStr = htmlStr.replace(/<\/p>/gi, '\n').replace(/<br\s*\/?>/gi, '\n').replace(/<\/div>/gi, '\n').replace(/<\/li>/gi, '\n');
+const tempDiv = document.createElement("div"); tempDiv.innerHTML = htmlStr; content = tempDiv.textContent || "";
+} else {
+content = await file.text();
+}
 
-        // ================= 🎵 多邻国风格音效引擎 =================
-        const AudioContext = window.AudioContext || window.webkitAudioContext;
-        let audioCtx;
+loadingText.textContent = "文本压缩与智能切片...";
+content = content.replace(/\n\s*\n/g, '\n').replace(/[ \t]+/g, ' ').trim();
+const chunks = splitTextIntoChunks(content, 1500);
 
-        function playSound(type) {
-            if (!audioCtx) audioCtx = new AudioContext();
-            if (audioCtx.state === 'suspended') audioCtx.resume();
+loadingText.textContent = `文件已拆分为 ${chunks.length} 块，即将连接 AI...`;
 
-            const t = audioCtx.currentTime;
-
-            function playTone(freq, waveType, startTime, duration, vol = 0.1, slideFreq = null) {
-                const osc = audioCtx.createOscillator();
-                const gain = audioCtx.createGain();
-                osc.type = waveType;
-                
-                osc.frequency.setValueAtTime(freq, startTime);
-                if (slideFreq) {
-                    osc.frequency.exponentialRampToValueAtTime(slideFreq, startTime + duration);
-                }
-
-                gain.gain.setValueAtTime(0, startTime);
-                gain.gain.linearRampToValueAtTime(vol, startTime + 0.015);
-                gain.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
-
-                osc.connect(gain);
-                gain.connect(audioCtx.destination);
-                osc.start(startTime);
-                osc.stop(startTime + duration);
-            }
-
-            if (type === 'click') {
-                playTone(400, 'sine', t, 0.1, 0.1, 200); 
-            } else if (type === 'correct') {
-                playTone(659.25, 'sine', t, 0.15, 0.1);       
-                playTone(880.00, 'sine', t + 0.1, 0.4, 0.15); 
-                playTone(1318.51, 'triangle', t, 0.15, 0.02); 
-                playTone(1760.00, 'triangle', t + 0.1, 0.4, 0.03);
-            } else if (type === 'wrong') {
-                playTone(300, 'triangle', t, 0.35, 0.15, 150);
-                playTone(290, 'sawtooth', t, 0.35, 0.03, 140); 
-            } else if (type === 'victory') {
-                playTone(523.25, 'sine', t, 0.15, 0.1);       
-                playTone(659.25, 'sine', t + 0.1, 0.15, 0.1); 
-                playTone(783.99, 'sine', t + 0.2, 0.15, 0.1); 
-                playTone(1046.50, 'sine', t + 0.3, 0.6, 0.15); 
-            }
-        }
-
-        // ================= UI 模式切换 =================
-        function switchMode(mode) {
-            if (currentAppMode === mode && localStorage.getItem('fmind_questions') === null) return;
-            currentAppMode = mode;
-            
-            const btnQuiz = document.getElementById('btn-mode-quiz');
-            const btnVocab = document.getElementById('btn-mode-vocab');
-            const icon = document.getElementById('intro-icon');
-            const title = document.getElementById('intro-title');
-            const desc = document.getElementById('intro-desc');
-            const tips = document.getElementById('intro-tips');
-            const uploadBtn = document.getElementById('upload-btn');
-            
-            if (mode === 'quiz') {
-                btnQuiz.className = "flex-1 py-3 text-sm rounded-xl transition-all duration-300 mode-active z-10 flex items-center justify-center gap-2";
-                btnVocab.className = "flex-1 py-3 text-sm rounded-xl transition-all duration-300 mode-inactive z-10 flex items-center justify-center gap-2";
-                icon.innerHTML = '<span class="text-3xl">✨</span>';
-                title.textContent = "一键将静态文档，变成专属题库";
-                desc.textContent = "导入 Word 或 TXT 文档，AI 自动提取原卷题目生成交互式练习。支持即时判卷与深度错题解析。";
-                tips.innerHTML = `
-                    <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">💡 导入小贴士</h3>
-                    <ul class="text-xs text-slate-600 space-y-1.5">
-                        <li>• 推荐在正确选项后标注星号 <b>*</b> 或 <b>答案：A</b></li>
-                        <li>• 支持单选、多选、判断题与填空题的精准识别</li>
-                        <li>• 长篇文档将自动切片处理，防内存崩溃</li>
-                    </ul>`;
-                uploadBtn.className = "w-full bg-indigo-600 hover:bg-indigo-700 text-white py-4 rounded-2xl font-bold shadow-lg shadow-indigo-200 transition-all flex justify-center items-center gap-2";
-                uploadBtn.innerHTML = `选择题库文件并解析 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" /></svg>`;
-            } else {
-                btnVocab.className = "flex-1 py-3 text-sm rounded-xl transition-all duration-300 mode-active z-10 flex items-center justify-center gap-2";
-                btnQuiz.className = "flex-1 py-3 text-sm rounded-xl transition-all duration-300 mode-inactive z-10 flex items-center justify-center gap-2";
-                icon.innerHTML = '<span class="text-3xl">📖</span>';
-                title.textContent = "萃取文章生词，生成记忆闪卡";
-                desc.textContent = "导入英语外刊、原版书章节或阅读理解。AI 将化身英语老师，自动为你提取核心高频生词，并生成选择题考查记忆。";
-                tips.innerHTML = `
-                    <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">💡 萃取小贴士</h3>
-                    <ul class="text-xs text-slate-600 space-y-1.5">
-                        <li>• 随便复制一篇全英文文章存为 .txt 上传即可</li>
-                        <li>• AI 会根据上下文语境生成对应的中文释义干扰项</li>
-                        <li>• 每1500字符最多提取 5 个高难度核心词汇</li>
-                    </ul>`;
-                uploadBtn.className = "w-full bg-emerald-600 hover:bg-emerald-700 text-white py-4 rounded-2xl font-bold shadow-lg shadow-emerald-200 transition-all flex justify-center items-center gap-2";
-                uploadBtn.innerHTML = `选择英文文章并萃取 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" /></svg>`;
-            }
-        }
-
-        function triggerUpload() {
-            playSound('click'); 
-            document.getElementById('file-input').click();
-        }
-
-        // ================= 文件处理 =================
-        document.getElementById('file-input').onchange = async (e) => {
-            const file = e.target.files[0];
-            if (!file) return;
-
-            document.getElementById('setup-area').style.pointerEvents = 'none';
-            document.getElementById('setup-area').classList.add('opacity-50');
-            document.getElementById('loading-status').classList.remove('hidden');
-            const loadingText = document.getElementById('loading-text');
-            
-            let content = "";
-            try {
-                loadingText.textContent = "正在读取文档...";
-                if (file.name.endsWith('.docx')) {
-                    const arrayBuffer = await file.arrayBuffer();
-                    const result = await mammoth.convertToHtml({ arrayBuffer });
-                    let htmlStr = result.value.replace(/color:\s*(#ff0000|#FF0000|red|rgb\(255,\s*0,\s*0\))/gi, "MARK_ANS");
-                    htmlStr = htmlStr.replace(/<\/p>/gi, '\n').replace(/<br\s*\/?>/gi, '\n').replace(/<\/div>/gi, '\n').replace(/<\/li>/gi, '\n');
-                    const tempDiv = document.createElement("div"); tempDiv.innerHTML = htmlStr; content = tempDiv.textContent || "";
-                } else {
-                    content = await file.text();
-                }
-                
-                loadingText.textContent = "文本压缩与智能切片...";
-                content = content.replace(/\n\s*\n/g, '\n').replace(/[ \t]+/g, ' ').trim();
-                const chunks = splitTextIntoChunks(content, 1500); 
-                
-                loadingText.textContent = `文件已拆分为 ${chunks.length} 块，即将连接 AI...`;
-                
-                for (let i = 0; i < chunks.length; i++) {
-                    const isLastChunk = (i === chunks.length - 1);
-                    if (isFirstQuestionRendered) {
-                        const actionText = currentAppMode === 'quiz' ? '解析后续题库' : '萃取后续生词';
-                        document.getElementById('bg-loading-tip').textContent = `⚡ DeepSeek 正在后台 ${actionText} (第 ${i + 1}/${chunks.length} 批)...`;
-                    }
-                    await parseQuestionsStream(chunks[i], isLastChunk);
-                    if (!isLastChunk) await new Promise(resolve => setTimeout(resolve, 1500));
-                }
-            } catch (error) {
-                alert(`读取失败: ${error.message}`);
-                resetUploadState();
-            }
-        };
-
-        function splitTextIntoChunks(text, maxLen) {
-            const lines = text.split('\n'); const chunks = []; let currentChunk = "";
-            for (const line of lines) {
-                if (currentChunk.length + line.length > maxLen && currentChunk.trim().length > 0) { chunks.push(currentChunk.trim()); currentChunk = ""; }
-                currentChunk += line + "\n";
-            }
-            if (currentChunk.trim().length > 0) chunks.push(currentChunk.trim());
-            return chunks;
-        }
-
-        function resetUploadState() {
-            clearProgress();
-            document.getElementById('loading-status').classList.add('hidden');
-            document.getElementById('setup-area').style.pointerEvents = 'auto';
-            document.getElementById('setup-area').classList.remove('opacity-50');
-            document.getElementById('file-input').value = '';
-            questions = []; currentIdx = 0; correctCount = 0; wrongQuestions = [];
-            isStreamFinished = false; isFirstQuestionRendered = false;
-        }
-
-        // ================= 后端代理请求：解析题目 =================
-        async function parseQuestionsStream(textChunk, isLastChunk) {
-            // 🆕 完美扩充增强版 AI 提示词（融入填空题红线）
-            const quizPrompt = `你是一个严格的题库结构化解析机器。将文本转换为 JSONL 格式（每行一个独立的JSON对象）。
+for (let i = 0; i < chunks.length; i++) {
+const isLastChunk = (i === chunks.length - 1);
+if (isFirstQuestionRendered) {
+const actionText = currentAppMode === 'quiz' ? '解析后续题库' : '萃取后续生词';
+document.getElementById('bg-loading-tip').textContent = `⚡ DeepSeek 正在后台 ${actionText} (第 ${i + 1}/${chunks.length} 批)...`;
+}
+await parseQuestionsStream(chunks[i], isLastChunk);
+if (!isLastChunk) await new Promise(resolve => setTimeout(resolve, 1500));
+}
+} catch (error) {
+alert(`读取失败: ${error.message}`);
+resetUploadState();
+}
+};
+function splitTextIntoChunks(text, maxLen) {
+const lines = text.split('\n'); const chunks = []; let currentChunk = "";
+for (const line of lines) {
+if (currentChunk.length + line.length > maxLen && currentChunk.trim().length > 0) { chunks.push(currentChunk.trim()); currentChunk = ""; }
+currentChunk += line + "\n";
+}
+if (currentChunk.trim().length > 0) chunks.push(currentChunk.trim());
+return chunks;
+}
+function resetUploadState() {
+clearProgress();
+document.getElementById('loading-status').classList.add('hidden');
+document.getElementById('setup-area').style.pointerEvents = 'auto';
+document.getElementById('setup-area').classList.remove('opacity-50');
+document.getElementById('file-input').value = '';
+questions = []; originalRawQuestions = []; currentIdx = 0; correctCount = 0; wrongQuestions = [];
+isStreamFinished = false; isFirstQuestionRendered = false;
+}
+// ================= 后端代理请求：解析题目 =================
+async function parseQuestionsStream(textChunk, isLastChunk) {
+const quizPrompt = `你是一个严格的题库结构化解析机器。将文本转换为 JSONL 格式（每行一个独立的JSON对象）。
 【最高准则】：严禁你自己解答！只提取原文中明示的答案（如标注了 * 号的选项，或文本末尾写明的答案）。
 【格式红线】：
 1. 绝对不要输出数组符号 [] 或 \`\`\`json。必须且只能用单行 JSON 输出一道题！
@@ -393,13 +381,11 @@
 7. 🚨【判断题特例】：无论原文如何标识（如 T/F、√/×、对/错），必须强制输出 "options":["正确","错误"]。如果原文答案是正确(T/√/对)，"answer" 必须为 "A"；如果是错误(F/×/错)，"answer" 必须为 "B"。
 8. 🚨【多选题特例】：如果原题有多个正确答案，"type" 必须填 "多选题"，且 "answer" 字段必须将所有正确选项的字母【按字母顺序紧凑拼在一起】输出（例如 "ABC"、"BD"），绝对不要加逗号、空格或用数组包裹！
 9. 🚨【填空题特例】：如果原题是填空题（没有选项，只有题干和答案），"type" 必须填 "填空题"，"options" 必须输出为空数组 []，"answer" 字段直接填入原文给出的文本答案（如果是多空答案，用空格或斜杠 / 隔开）。
-
 格式示例：
 {"type":"单选题","title":"中国古代四大发明不包括以下哪项？","options":["造纸术","指南针","高铁","火药"],"answer":"C"}
 {"type":"多选题","title":"以下属于计算机输入设备的有？","options":["鼠标","键盘","显示器","打印机"],"answer":"AB"}
 {"type":"填空题","title":"离散傅里叶变换的英文缩写是（）。","options":[],"answer":"DFT"}`;
-
-            const vocabPrompt = `你是一位专业的英语词汇老师。请阅读用户提供的英文文本，从中提取最核心、最高频或有一定难度的 3 到 5 个英语生词。
+const vocabPrompt = `你是一位专业的英语词汇老师。请阅读用户提供的英文文本，从中提取最核心、最高频或有一定难度的 3 到 5 个英语生词。
 然后，为你提取的每个生词，生成一道英语词意考查单选题。
 【格式红线】：
 1. 必须且只能用单行 JSONL 输出一道题！
@@ -408,398 +394,433 @@
 4. 4个选项中必须有1个正确释义和3个具有迷惑性的错误释义。正确答案的字母必须随机分布。
 格式示例：
 {"type":"单选题","title":"单词 'Intricate' 在文中的准确释义是？","options":["复杂的，错综的","有趣的","简单的","巨大的"],"answer":"A"}`;
+const activePrompt = currentAppMode === 'quiz' ? quizPrompt : vocabPrompt;
+try {
+const response = await fetch("/api/chat", {
+method: "POST",
+headers: { "Content-Type": "application/json" },
+body: JSON.stringify({
+model: "deepseek-chat",
+stream: true,
+messages: [
+{ role: "system", content: activePrompt },
+{ role: "user", content: textChunk }
+],
+temperature: currentAppMode === 'vocab' ? 0.3 : 0.0
+})
+});
+if (!response.ok) throw new Error(`后端请求失败 (${response.status})`);
+const reader = response.body.getReader();
+const decoder = new TextDecoder("utf-8");
+let textBuffer = "";
+let sseBuffer = "";
+while (true) {
+const { done, value } = await reader.read();
+if (done) {
+if (isLastChunk) {
+isStreamFinished = true;
+document.getElementById('bg-loading-bar').classList.add('hidden');
+document.getElementById('bg-loading-tip').classList.add('hidden');
+saveProgress();
+}
+break;
+}
+sseBuffer += decoder.decode(value, { stream: true });
+const lines = sseBuffer.split('\n');
+sseBuffer = lines.pop();
+for (const line of lines) {
+const trimmedLine = line.trim();
+if (trimmedLine.startsWith('data: ') && trimmedLine !== 'data: [DONE]') {
+try {
+const data = JSON.parse(trimmedLine.slice(6));
+const content = data.choices[0].delta.content || "";
+textBuffer += content;
+textBuffer = textBuffer.replace(/}\s*,\s*{/g, '}\n{').replace(/}\s*{/g, '}\n{');
+let newlineIndex;
+while ((newlineIndex = textBuffer.indexOf('\n')) !== -1) {
+let jsonStr = textBuffer.slice(0, newlineIndex).trim();
+textBuffer = textBuffer.slice(newlineIndex + 1);
+jsonStr = jsonStr.replace(/^```json/, '').replace(/```$/, '').trim();
+if (jsonStr.startsWith('{') && jsonStr.endsWith('}')) {
+try {
+const q = JSON.parse(jsonStr);
+questions.push(q);
+originalRawQuestions.push(JSON.parse(jsonStr)); // 🆕 同样同步备份至初始阵列
+document.getElementById('total-idx').textContent = questions.length;
+saveProgress();
+if (!isFirstQuestionRendered) {
+isFirstQuestionRendered = true;
+document.getElementById('setup-area').classList.add('hidden');
+document.getElementById('quiz-area').classList.remove('hidden');
+document.getElementById('progress-indicator').classList.remove('hidden');
+document.getElementById('bg-loading-bar').classList.remove('hidden');
+render();
+} else {
+// 🆕 流式加载新题时追加并局部刷新答题卡
+renderAnswerCard();
+}
+} catch (parseErr) {}
+}
+}
+} catch (e) {}
+}
+}
+}
 
-            const activePrompt = currentAppMode === 'quiz' ? quizPrompt : vocabPrompt;
+if (textBuffer.trim().startsWith('{') && textBuffer.trim().endsWith('}')) {
+try {
+const lastQ = JSON.parse(textBuffer.trim());
+questions.push(lastQ);
+originalRawQuestions.push(JSON.parse(textBuffer.trim()));
+document.getElementById('total-idx').textContent = questions.length;
+saveProgress();
+renderAnswerCard();
+} catch(e) {}
+}
+} catch (error) {
+if(questions.length === 0) { alert(`连接失败: ${error.message}。请检查 Vercel 环境变量配置！`); resetUploadState(); }
+}
+}
+// ================= 动态自适应防白屏渲染与交互逻辑 =================
+function render() {
+try {
+if (questions.length === 0) return;
+saveProgress();
+const q = questions[currentIdx]; selections = [];
+document.getElementById('curr-idx').textContent = currentIdx + 1;
 
-            try {
-                const response = await fetch("/api/chat", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        model: "deepseek-chat", 
-                        stream: true,
-                        messages: [
-                            { role: "system", content: activePrompt },
-                            { role: "user", content: textChunk }
-                        ],
-                        temperature: currentAppMode === 'vocab' ? 0.3 : 0.0
-                    })
-                });
+const rawTitle = q.title || "（AI 暂未提取到本题题干）";
+document.getElementById('q-text').textContent = String(rawTitle).replace(/MARK_ANS|\*|√|（正确）|\(正确\)/g, '');
+document.getElementById('q-tag').textContent = q.type || "单选题";
 
-                if (!response.ok) throw new Error(`后端请求失败 (${response.status})`);
+const list = document.getElementById('options-list');
+const blankContainer = document.getElementById('blank-container');
+const blankInput = document.getElementById('blank-input');
+const multiSubmit = document.getElementById('multi-submit');
+document.getElementById('ans-panel').classList.add('hidden');
+document.getElementById('next-question').classList.add('hidden');
+document.getElementById('prev-question').classList.toggle('hidden', currentIdx === 0);
+document.getElementById('btn-explain').classList.remove('hidden');
+document.getElementById('ai-explain').classList.add('hidden');
+document.getElementById('ai-explain').textContent = '';
 
-                const reader = response.body.getReader();
-                const decoder = new TextDecoder("utf-8");
-                let textBuffer = ""; 
-                let sseBuffer = ""; 
+// 🆕 同步控制打乱按钮在已判分状态下不可用，防逻辑冲突
+document.getElementById('shuffle-question').disabled = false;
 
-                while (true) {
-                    const { done, value } = await reader.read();
-                    if (done) {
-                        if (isLastChunk) {
-                            isStreamFinished = true;
-                            document.getElementById('bg-loading-bar').classList.add('hidden');
-                            document.getElementById('bg-loading-tip').classList.add('hidden');
-                            saveProgress(); // 传输终点触发缓存归档
-                        }
-                        break; 
-                    }
+if (q.type === '填空题') {
+list.innerHTML = "";
+list.classList.add('hidden');
+blankContainer.classList.remove('hidden');
 
-                    sseBuffer += decoder.decode(value, { stream: true });
-                    const lines = sseBuffer.split('\n');
-                    sseBuffer = lines.pop(); 
+blankInput.value = '';
+blankInput.disabled = false;
+blankInput.className = "w-full p-5 border border-slate-200 rounded-2xl bg-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm font-medium transition-all";
 
-                    for (const line of lines) {
-                        const trimmedLine = line.trim();
-                        if (trimmedLine.startsWith('data: ') && trimmedLine !== 'data: [DONE]') {
-                            try {
-                                const data = JSON.parse(trimmedLine.slice(6));
-                                const content = data.choices[0].delta.content || "";
-                                textBuffer += content;
+multiSubmit.classList.remove('hidden');
+multiSubmit.textContent = "确认提交答案";
+} else {
+list.classList.remove('hidden');
+blankContainer.classList.add('hidden');
+list.innerHTML = "";
 
-                                textBuffer = textBuffer.replace(/}\s*,\s*{/g, '}\n{').replace(/}\s*{/g, '}\n{');
+multiSubmit.textContent = "确认提交";
+multiSubmit.classList.toggle('hidden', q.type !== '多选题');
+if (!Array.isArray(q.options)) {
+if (q.type === '判断题') q.options = ["正确", "错误"];
+else if (typeof q.options === 'string') q.options = [q.options];
+else q.options = ["缺省选项A", "缺省选项B"];
+}
+q.options.forEach((opt, i) => {
+const btn = document.createElement('button');
+btn.className = "option-btn w-full text-left p-5 rounded-2xl border border-slate-200 bg-white flex items-center mb-1";
+btn.onclick = () => handleSelect(i);
+const char = String.fromCharCode(65 + i);
+const text = String(opt).replace(/MARK_ANS|\*|√|（正确）|\(正确\)/g, '').replace(/^[A-Z][.\s、]*/, '').trim();
+btn.innerHTML = `<span class="w-7 h-7 rounded-lg bg-slate-50 border text-[10px] font-bold flex items-center justify-center mr-4 shrink-0">${char}</span><span class="text-sm font-medium text-slate-700">${text}</span>`;
+list.appendChild(btn);
+});
+}
+// 🆕 每次加载新题目都会重绘/刷新答题卡的高亮选定
+renderAnswerCard();
+} catch (error) {
+console.error("渲染题目时崩溃:", error);
+alert("这道题 AI 生成的格式异常，已自动为您跳过！");
+currentIdx++;
+if (currentIdx < questions.length) render();
+else showSummary();
+}
+}
 
-                                let newlineIndex;
-                                while ((newlineIndex = textBuffer.indexOf('\n')) !== -1) {
-                                    let jsonStr = textBuffer.slice(0, newlineIndex).trim();
-                                    textBuffer = textBuffer.slice(newlineIndex + 1);
-                                    jsonStr = jsonStr.replace(/^```json/, '').replace(/```$/, '').trim();
+// ================= 🆕 新增功能 1：特定题型分类内部打乱逻辑 =================
+function handleSpecificShuffle() {
+if (questions.length === 0) return alert("暂无可以打乱的题库数据！");
+playSound('click');
 
-                                    if (jsonStr.startsWith('{') && jsonStr.endsWith('}')) {
-                                        try {
-                                            const q = JSON.parse(jsonStr);
-                                            questions.push(q);
-                                            document.getElementById('total-idx').textContent = questions.length;
-                                            saveProgress(); // 每进来一题，自动刷新本地存档
+// 分割选择类题目(单选、多选、判断) 和 填空题目
+const selectTypes = originalRawQuestions.filter(q => q.type !== '填空题');
+const fillTypes = originalRawQuestions.filter(q => q.type === '填空题');
 
-                                            if (!isFirstQuestionRendered) {
-                                                isFirstQuestionRendered = true;
-                                                document.getElementById('setup-area').classList.add('hidden');
-                                                document.getElementById('quiz-area').classList.remove('hidden');
-                                                document.getElementById('progress-indicator').classList.remove('hidden');
-                                                document.getElementById('bg-loading-bar').classList.remove('hidden');
-                                                render();
-                                            }
-                                        } catch (parseErr) {}
-                                    }
-                                }
-                            } catch (e) {} 
-                        }
-                    }
-                }
-                
-                if (textBuffer.trim().startsWith('{') && textBuffer.trim().endsWith('}')) {
-                    try { 
-                        questions.push(JSON.parse(textBuffer.trim())); 
-                        document.getElementById('total-idx').textContent = questions.length; 
-                        saveProgress();
-                    } catch(e) {}
-                }
-            } catch (error) {
-                if(questions.length === 0) { alert(`连接失败: ${error.message}。请检查 Vercel 环境变量配置！`); resetUploadState(); }
-            }
-        }
+// 分别深度洗牌
+const shuffledSelects = shuffleAlgorithm([...selectTypes]);
+const shuffledFills = shuffleAlgorithm([...fillTypes]);
 
-        // ================= 动态自适应防白屏渲染与交互逻辑 =================
-        function render() {
-            try {
-                if (questions.length === 0) return;
-                saveProgress(); // 每次执行翻页，强制重置缓存断点位置
+// 重新归拢合并，保持原有大分类框架不乱
+questions = [...shuffledSelects, ...shuffledFills];
 
-                const q = questions[currentIdx]; selections = [];
-                document.getElementById('curr-idx').textContent = currentIdx + 1;
-                
-                const rawTitle = q.title || "（AI 暂未提取到本题题干）";
-                document.getElementById('q-text').textContent = String(rawTitle).replace(/MARK_ANS|\*|√|（正确）|\(正确\)/g, '');
-                document.getElementById('q-tag').textContent = q.type || "单选题";
-                
-                const list = document.getElementById('options-list'); 
-                const blankContainer = document.getElementById('blank-container');
-                const blankInput = document.getElementById('blank-input');
-                const multiSubmit = document.getElementById('multi-submit');
+// 重组后指针回归至第一题，重构页面
+currentIdx = 0;
+render();
+alert("✨ 已成功为您将选择类题型与填空题型各自在内部完成打乱重新排布！");
+}
 
-                document.getElementById('ans-panel').classList.add('hidden');
-                document.getElementById('next-question').classList.add('hidden');
-                document.getElementById('prev-question').classList.toggle('hidden', currentIdx === 0);
-                document.getElementById('btn-explain').classList.remove('hidden');
-                document.getElementById('ai-explain').classList.add('hidden');
-                document.getElementById('ai-explain').textContent = '';
+// 经典洗牌算法
+function shuffleAlgorithm(array) {
+for (let i = array.length - 1; i > 0; i--) {
+const j = Math.floor(Math.random() * (i + 1));
+[array[i], array[j]] = [array[j], array[i]];
+}
+return array;
+}
 
-                // 🆕 分流自适应渲染：填空题 VS 选择题
-                if (q.type === '填空题') {
-                    list.innerHTML = "";
-                    list.classList.add('hidden');
-                    blankContainer.classList.remove('hidden');
-                    
-                    blankInput.value = '';
-                    blankInput.disabled = false;
-                    blankInput.className = "w-full p-5 border border-slate-200 rounded-2xl bg-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm font-medium transition-all";
-                    
-                    multiSubmit.classList.remove('hidden');
-                    multiSubmit.textContent = "确认提交答案";
-                } else {
-                    list.classList.remove('hidden');
-                    blankContainer.classList.add('hidden');
-                    list.innerHTML = "";
-                    
-                    multiSubmit.textContent = "确认提交";
-                    multiSubmit.classList.toggle('hidden', q.type !== '多选题');
+// ================= 🆕 新增功能 2：答题卡生成与无缝跳题 =================
+function renderAnswerCard() {
+const container = document.getElementById('answer-card');
+if (!container) return;
+container.innerHTML = '';
 
-                    if (!Array.isArray(q.options)) {
-                        if (q.type === '判断题') q.options = ["正确", "错误"];
-                        else if (typeof q.options === 'string') q.options = [q.options]; 
-                        else q.options = ["缺省选项A", "缺省选项B"]; 
-                    }
+questions.forEach((q, index) => {
+const btn = document.createElement('button');
+btn.innerText = index + 1;
+// 基础尾风样式配置
+btn.className = "h-10 text-xs font-bold rounded-xl border flex items-center justify-center transition-all ";
 
-                    q.options.forEach((opt, i) => {
-                        const btn = document.createElement('button');
-                        btn.className = "option-btn w-full text-left p-5 rounded-2xl border border-slate-200 bg-white flex items-center mb-1";
-                        btn.onclick = () => handleSelect(i);
-                        const char = String.fromCharCode(65 + i);
-                        const text = String(opt).replace(/MARK_ANS|\*|√|（正确）|\(正确\)/g, '').replace(/^[A-Z][.\s、]*/, '').trim();
-                        btn.innerHTML = `<span class="w-7 h-7 rounded-lg bg-slate-50 border text-[10px] font-bold flex items-center justify-center mr-4 shrink-0">${char}</span><span class="text-sm font-medium text-slate-700">${text}</span>`;
-                        list.appendChild(btn);
-                    });
-                }
-            } catch (error) {
-                console.error("渲染题目时崩溃:", error);
-                alert("这道题 AI 生成的格式异常，已自动为您跳过！");
-                currentIdx++;
-                if (currentIdx < questions.length) render();
-                else showSummary();
-            }
-        }
+// 根据不同题型渲染微弱卡片边框色便于分类感知
+if (q.type === '填空题') {
+btn.classList.add('border-emerald-200', 'text-emerald-700', 'bg-emerald-50/40');
+} else if (q.type === '多选题') {
+btn.classList.add('border-purple-200', 'text-purple-700', 'bg-purple-50/40');
+} else {
+btn.classList.add('border-slate-200', 'text-slate-600', 'bg-slate-50/50');
+}
 
-        function handleSelect(idx) {
-            playSound('click'); 
-            const q = questions[currentIdx];
-            if (q.type === '多选题') {
-                const btns = document.querySelectorAll('.option-btn');
-                if (selections.includes(idx)) { selections = selections.filter(i => i !== idx); btns[idx].classList.remove('selected-multi'); } 
-                else { selections.push(idx); btns[idx].classList.add('selected-multi'); }
-            } else { showResult([idx]); }
-        }
+// 当前处于选中活跃态的高亮覆盖
+if (index === currentIdx) {
+btn.className = "h-10 text-xs font-black rounded-xl border-2 border-indigo-600 bg-indigo-600 text-white shadow-md shadow-indigo-100 flex items-center justify-center scale-105 transition-all";
+}
 
-        // 统一控制中心点击提交
-        document.getElementById('multi-submit').onclick = () => { 
-            const q = questions[currentIdx];
-            if (q.type === '填空题') {
-                const userInputRaw = document.getElementById('blank-input').value.trim();
-                if (!userInputRaw) return alert("请输入你的答案后再提交！");
-                showResult(userInputRaw);
-            } else {
-                if (selections.length === 0) return alert("请至少选择一个选项！"); 
-                showResult(selections); 
-            }
-        };
+// 绑定快捷调取跳题
+btn.onclick = () => {
+playSound('click');
+currentIdx = index;
+render();
+};
 
-        // 核心动态判卷判分引擎
-        function showResult(userInput) {
-            const q = questions[currentIdx]; 
-            const btns = document.querySelectorAll('.option-btn');
-            const blankInput = document.getElementById('blank-input');
-            
-            let isCorrect = false;
-            let correctStr = "";
-            let userAnsStr = "";
+container.appendChild(btn);
+});
+}
 
-            // 🆕 填空题文本大小写模糊智能比对
-            if (q.type === '填空题') {
-                correctStr = String(q.answer || "").trim();
-                userAnsStr = String(userInput).trim();
-                isCorrect = (userAnsStr.toLowerCase() === correctStr.toLowerCase() && userAnsStr !== "");
-                
-                blankInput.disabled = true;
-                if (isCorrect) {
-                    blankInput.className = "w-full p-5 border-2 border-emerald-500 rounded-2xl bg-emerald-50 text-emerald-700 font-bold text-sm focus:outline-none transition-all";
-                } else {
-                    blankInput.className = "w-full p-5 border-2 border-rose-500 rounded-2xl bg-rose-50 text-rose-700 font-bold text-sm focus:outline-none transition-all";
-                }
-            } else {
-                // 选择题比对
-                correctStr = (q.answer || "A").toUpperCase().replace(/[^A-Z]/g, '');
-                userAnsStr = userInput.slice().sort().map(i => String.fromCharCode(65 + i)).join('');
-                isCorrect = (userAnsStr === correctStr);
+function handleSelect(idx) {
+playSound('click');
+const q = questions[currentIdx];
+if (q.type === '多选题') {
+const btns = document.querySelectorAll('.option-btn');
+if (selections.includes(idx)) { selections = selections.filter(i => i !== idx); btns[idx].classList.remove('selected-multi'); }
+else { selections.push(idx); btns[idx].classList.add('selected-multi'); }
+} else { showResult([idx]); }
+}
+// 统一控制中心点击提交
+document.getElementById('multi-submit').onclick = () => {
+const q = questions[currentIdx];
+if (q.type === '填空题') {
+const userInputRaw = document.getElementById('blank-input').value.trim();
+if (!userInputRaw) return alert("请输入你的答案后再提交！");
+showResult(userInputRaw);
+} else {
+if (selections.length === 0) return alert("请至少选择一个选项！");
+showResult(selections);
+}
+};
+// 核心动态判卷判分引擎
+function showResult(userInput) {
+const q = questions[currentIdx];
+const btns = document.querySelectorAll('.option-btn');
+const blankInput = document.getElementById('blank-input');
 
-                btns.forEach((btn, i) => {
-                    btn.onclick = null; btn.classList.add('cursor-default');
-                    const char = String.fromCharCode(65 + i);
-                    if (correctStr.includes(char)) btn.classList.add('border-emerald-500', 'bg-emerald-50');
-                    else if (userInput.includes(i)) btn.classList.add('border-rose-500', 'bg-rose-50');
-                });
-            }
+let isCorrect = false;
+let correctStr = "";
+let userAnsStr = "";
+document.getElementById('shuffle-question').disabled = true; // 🆕 判卷展示期间锁死打乱，防止数据状态错位
 
-            if (isCorrect) {
-                correctCount++; 
-                playSound('correct'); 
-            } else {
-                wrongQuestions.push({ question: q, userAns: userAnsStr, correctAns: correctStr });
-                playSound('wrong'); 
-                const card = document.getElementById('quiz-card');
-                card.classList.add('shake-anim');
-                setTimeout(() => card.classList.remove('shake-anim'), 400);
-            }
+if (q.type === '填空题') {
+correctStr = String(q.answer || "").trim();
+userAnsStr = String(userInput).trim();
+isCorrect = (userAnsStr.toLowerCase() === correctStr.toLowerCase() && userAnsStr !== "");
 
-            document.getElementById('correct-answer').textContent = correctStr;
-            document.getElementById('ans-panel').classList.remove('hidden');
-            document.getElementById('next-question').classList.remove('hidden');
-            document.getElementById('multi-submit').classList.add('hidden');
-            
-            saveProgress(); // 状态评定后即刻锁死写入本地，防作弊防丢分
-        }
+blankInput.disabled = true;
+if (isCorrect) {
+blankInput.className = "w-full p-5 border-2 border-emerald-500 rounded-2xl bg-emerald-50 text-emerald-700 font-bold text-sm focus:outline-none transition-all";
+} else {
+blankInput.className = "w-full p-5 border-2 border-rose-500 rounded-2xl bg-rose-50 text-rose-700 font-bold text-sm focus:outline-none transition-all";
+}
+} else {
+correctStr = (q.answer || "A").toUpperCase().replace(/[^A-Z]/g, '');
+userAnsStr = userInput.slice().sort().map(i => String.fromCharCode(65 + i)).join('');
+isCorrect = (userAnsStr === correctStr);
+btns.forEach((btn, i) => {
+btn.onclick = null; btn.classList.add('cursor-default');
+const char = String.fromCharCode(65 + i);
+if (correctStr.includes(char)) btn.classList.add('border-emerald-500', 'bg-emerald-50');
+else if (userInput.includes(i)) btn.classList.add('border-rose-500', 'bg-rose-50');
+});
+}
+if (isCorrect) {
+correctCount++;
+playSound('correct');
+} else {
+wrongQuestions.push({ question: q, userAns: userAnsStr, correctAns: correctStr });
+playSound('wrong');
+const card = document.getElementById('quiz-card');
+card.classList.add('shake-anim');
+setTimeout(() => card.classList.remove('shake-anim'), 400);
+}
+document.getElementById('correct-answer').textContent = correctStr;
+document.getElementById('ans-panel').classList.remove('hidden');
+document.getElementById('next-question').classList.remove('hidden');
+document.getElementById('multi-submit').classList.add('hidden');
 
-        document.getElementById('btn-explain').onclick = () => {
-            playSound('click'); 
-            const q = questions[currentIdx];
-            document.getElementById('btn-explain').classList.add('hidden');
-            document.getElementById('ai-explain').classList.remove('hidden');
-            fetchExplain(q, document.getElementById('ai-explain'));
-        };
+saveProgress();
+}
+document.getElementById('btn-explain').onclick = () => {
+playSound('click');
+const q = questions[currentIdx];
+document.getElementById('btn-explain').classList.add('hidden');
+document.getElementById('ai-explain').classList.remove('hidden');
+fetchExplain(q, document.getElementById('ai-explain'));
+};
+function rollbackScore(idx) {
+const q = questions[idx];
+const wrongIdx = wrongQuestions.findIndex(item => item.question.title === q.title);
+if (wrongIdx !== -1) {
+wrongQuestions.splice(wrongIdx, 1);
+} else {
+if (correctCount > 0) correctCount--;
+}
+}
+// 时光倒流事件
+document.getElementById('prev-question').onclick = () => {
+playSound('click');
+if (currentIdx === 0) return;
+if (!document.getElementById('next-question').classList.contains('hidden')) {
+rollbackScore(currentIdx);
+}
+currentIdx--;
+rollbackScore(currentIdx);
+render();
+};
+// 下一题翻页调度器
+document.getElementById('next-question').onclick = () => {
+playSound('click');
+currentIdx++;
+if (currentIdx < questions.length) {
+render();
+} else {
+showSummary();
+}
+};
+// ================= 后端代理请求：生成解析 =================
+async function fetchExplain(q, containerNode) {
+containerNode.textContent = "✨ DeepSeek 正在生成深度解析...";
 
-        // 🆕 修复核心：升级标题内容比对，防止对象引用断裂导致错题撤销失效
-        function rollbackScore(idx) {
-            const q = questions[idx];
-            const wrongIdx = wrongQuestions.findIndex(item => item.question.title === q.title);
-            if (wrongIdx !== -1) {
-                wrongQuestions.splice(wrongIdx, 1); 
-            } else {
-                if (correctCount > 0) correctCount--; 
-            }
-        }
+const explainPrompt = currentAppMode === 'quiz'
+? "用50字以内简练地分析这道题的考点和正确选项的原因。"
+: "请详细解释这个英文单词的含义、词性，并给出一个包含该单词的经典英文例句（附中文翻译）。";
+try {
+const res = await fetch("/api/chat", {
+method: "POST",
+headers: { "Content-Type": "application/json" },
+body: JSON.stringify({
+model: "deepseek-chat",
+stream: true,
+messages: [
+{ role: "system", content: explainPrompt },
+{ role: "user", content: JSON.stringify(q) }
+]
+})
+});
+if (!res.ok) throw new Error("解析包加载失败");
+const reader = res.body.getReader();
+const decoder = new TextDecoder("utf-8");
+containerNode.textContent = "";
+let sseBuffer = "";
+while (true) {
+const { done, value } = await reader.read();
+if (done) break;
+sseBuffer += decoder.decode(value, { stream: true });
+const lines = sseBuffer.split('\n');
+sseBuffer = lines.pop();
+for (const line of lines) {
+const trimmedLine = line.trim();
+if (trimmedLine.startsWith('data: ') && trimmedLine !== 'data: [DONE]') {
+try {
+const data = JSON.parse(trimmedLine.slice(6));
+const content = data.choices[0].delta.content || "";
+containerNode.textContent += content;
+} catch (e) {}
+}
+}
+}
+} catch (error) {
+containerNode.textContent = `无法加载解析: ${error.message}`;
+}
+}
+// ================= 📊 练习结算页大面板 =================
+function showSummary() {
+clearProgress();
+playSound('victory');
+document.getElementById('quiz-area').classList.add('hidden');
+document.getElementById('summary-area').classList.remove('hidden');
+document.getElementById('progress-indicator').classList.add('hidden');
+const score = questions.length > 0 ? Math.round((correctCount / questions.length) * 100) : 0;
+document.getElementById('final-score').innerHTML = `${score}<span class="text-xl text-indigo-400">分</span>`;
+const emojiNode = document.getElementById('score-emoji');
+if (score >= 90) emojiNode.textContent = "🎉";
+else if (score >= 60) emojiNode.textContent = "👍";
+else emojiNode.textContent = "☕";
+document.getElementById('total-q-count').textContent = questions.length;
+document.getElementById('correct-q-count').textContent = correctCount;
+const mistakeBook = document.getElementById('mistake-book');
+const mistakeList = document.getElementById('mistake-list');
+mistakeList.innerHTML = "";
+if (wrongQuestions.length > 0) {
+mistakeBook.classList.remove('hidden');
+wrongQuestions.forEach((item, index) => {
+const div = document.createElement('div');
+div.className = "mistake-item bg-slate-50 p-5 rounded-2xl border border-slate-100 space-y-2";
 
-        // 时光倒流事件
-        document.getElementById('prev-question').onclick = () => {
-            playSound('click');
-            if (currentIdx === 0) return;
-
-            if (!document.getElementById('next-question').classList.contains('hidden')) {
-                rollbackScore(currentIdx);
-            }
-
-            currentIdx--;
-            rollbackScore(currentIdx);
-            render();
-        };
-
-        // 🆕 下一题翻页调度器（修复补全）
-        document.getElementById('next-question').onclick = () => {
-            playSound('click');
-            currentIdx++;
-            if (currentIdx < questions.length) {
-                render();
-            } else {
-                showSummary();
-            }
-        };
-
-        // ================= 后端代理请求：生成解析（修复补全） =================
-        async function fetchExplain(q, containerNode) {
-            containerNode.textContent = "✨ DeepSeek 正在生成深度解析...";
-            
-            const explainPrompt = currentAppMode === 'quiz' 
-                ? "用50字以内简练地分析这道题的考点和正确选项的原因。"
-                : "请详细解释这个英文单词的含义、词性，并给出一个包含该单词的经典英文例句（附中文翻译）。";
-
-            try {
-                const res = await fetch("/api/chat", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        model: "deepseek-chat", 
-                        stream: true,
-                        messages: [
-                            { role: "system", content: explainPrompt },
-                            { role: "user", content: JSON.stringify(q) }
-                        ]
-                    })
-                });
-
-                if (!res.ok) throw new Error("解析包加载失败");
-
-                const reader = res.body.getReader();
-                const decoder = new TextDecoder("utf-8");
-                containerNode.textContent = "";
-                let sseBuffer = "";
-
-                while (true) {
-                    const { done, value } = await reader.read();
-                    if (done) break;
-
-                    sseBuffer += decoder.decode(value, { stream: true });
-                    const lines = sseBuffer.split('\n');
-                    sseBuffer = lines.pop();
-
-                    for (const line of lines) {
-                        const trimmedLine = line.trim();
-                        if (trimmedLine.startsWith('data: ') && trimmedLine !== 'data: [DONE]') {
-                            try {
-                                const data = JSON.parse(trimmedLine.slice(6));
-                                const content = data.choices[0].delta.content || "";
-                                containerNode.textContent += content;
-                            } catch (e) {}
-                        }
-                    }
-                }
-            } catch (error) {
-                containerNode.textContent = `无法加载解析: ${error.message}`;
-            }
-        }
-
-        // ================= 📊 练习结算页大面板（修复补全） =================
-        function showSummary() {
-            clearProgress(); // 通关结算完成，彻底销毁历史缓存
-            playSound('victory');
-
-            document.getElementById('quiz-area').classList.add('hidden');
-            document.getElementById('summary-area').classList.remove('hidden');
-            document.getElementById('progress-indicator').classList.add('hidden');
-
-            const score = questions.length > 0 ? Math.round((correctCount / questions.length) * 100) : 0;
-            document.getElementById('final-score').innerHTML = `${score}<span class="text-xl text-indigo-400">分</span>`;
-
-            const emojiNode = document.getElementById('score-emoji');
-            if (score >= 90) emojiNode.textContent = "🎉";
-            else if (score >= 60) emojiNode.textContent = "👍";
-            else emojiNode.textContent = "☕";
-
-            document.getElementById('total-q-count').textContent = questions.length;
-            document.getElementById('correct-q-count').textContent = correctCount;
-
-            const mistakeBook = document.getElementById('mistake-book');
-            const mistakeList = document.getElementById('mistake-list');
-            mistakeList.innerHTML = "";
-
-            if (wrongQuestions.length > 0) {
-                mistakeBook.classList.remove('hidden');
-                wrongQuestions.forEach((item, index) => {
-                    const div = document.createElement('div');
-                    div.className = "mistake-item bg-slate-50 p-5 rounded-2xl border border-slate-100 space-y-2";
-                    
-                    let optionsHtml = "";
-                    if (Array.isArray(item.question.options) && item.question.options.length > 0) {
-                        optionsHtml = `<div class="grid gap-1.5 mt-2 text-xs text-slate-600">`;
-                        item.question.options.forEach((opt, idx) => {
-                            const char = String.fromCharCode(65 + idx);
-                            optionsHtml += `<div><b>${char}.</b> ${opt}</div>`;
-                        });
-                        optionsHtml += `</div>`;
-                    }
-
-                    div.innerHTML = `
-                        <div class="text-xs font-bold text-slate-400">错题 ${index + 1} [${item.question.type || '单选题'}]</div>
-                        <div class="text-sm font-bold text-slate-800">${item.question.title}</div>
-                        ${optionsHtml}
-                        <div class="flex gap-4 text-xs mt-2 border-t pt-2 border-dashed border-slate-200">
-                            <span class="text-rose-600 font-medium">你的答案：<b class="font-mono">${item.userAns || '未作答'}</b></span>
-                            <span class="text-emerald-600 font-medium">正确答案：<b class="font-mono">${item.correctAns}</b></span>
-                        </div>
-                    `;
-                    mistakeList.appendChild(div);
-                });
-            } else {
-                mistakeBook.classList.add('hidden');
-            }
-        }
-    </script>
+let optionsHtml = "";
+if (Array.isArray(item.question.options) && item.question.options.length > 0) {
+optionsHtml = `<div class="grid gap-1.5 mt-2 text-xs text-slate-600">`;
+item.question.options.forEach((opt, idx) => {
+const char = String.fromCharCode(65 + idx);
+optionsHtml += `<div><b>${char}.</b> ${opt}</div>`;
+});
+optionsHtml += `</div>`;
+}
+div.innerHTML = `
+<div class="text-xs font-bold text-slate-400">错题 ${index + 1} [${item.question.type || '单选题'}]</div>
+<div class="text-sm font-bold text-slate-800">${item.question.title}</div>
+${optionsHtml}
+<div class="flex gap-4 text-xs mt-2 border-t pt-2 border-dashed border-slate-200">
+<span class="text-rose-600 font-medium">你的答案：<b class="font-mono">${item.userAns || '未作答'}</b></span>
+<span class="text-emerald-600 font-medium">正确答案：<b class="font-mono">${item.correctAns}</b></span>
+</div>
+`;
+mistakeList.appendChild(div);
+});
+} else {
+mistakeBook.classList.add('hidden');
+}
+}
+</script>
 </body>
 </html>
