@@ -77,3 +77,37 @@
 1. 克隆本项目到本地：
    ```bash
    git clone [https://github.com/3510127520/AI-FlashMind.git](https://github.com/3510127520/AI-FlashMind.git)
+
+
+
+1，进入目录，双击打开 index.html（或使用 Live Server 插件运行）。
+
+2，填入你的 DeepSeek API Key 即可完美跑通所有流程！
+
+📸 界面预览
+
+
+
+
+
+
+
+
+🗺️ 发展路线 (Roadmap)
+[x] 基于本地存储的断点续答记忆功能
+
+[x] 智能填空题题型拓展
+
+[x] 全局题号答题卡组件
+
+[x] 题库防机械记忆随机打乱
+
+[ ] 支持一键导出错题本为标准的 PDF / Markdown 格式
+
+[ ] 丰富多邻国式游戏化卡牌激励 UI
+
+[ ] 预设多语种、多学科刷题专属 Prompt 模版
+
+
+📄 开源协议
+本项目基于 MIT License 协议开源。欢迎自由 Fork、PR 和二创！如果这个项目帮到了你，请给作者点一个 ✨ Star，这是对我持续更新最大的鼓励！
