@@ -95,7 +95,8 @@ vercel dev
 启动后，访问命令行输出的 http://localhost:3000。此时，前端的 fetch("/api/chat") 请求就会被正确路由到本地的 api/ 目录中进行处理，完美跑通整个本地刷题流程！
 
 📸 界面预览
-(建议在此处放一张你的产品答题界面、或是带有错题本和声音震动效果的运行截图/GIF)
+![Uploading 动画.gif…]()
+
 
 🗺️ 发展路线 (Roadmap)
 [x] 基于 localStorage 的断点续答记忆功能
