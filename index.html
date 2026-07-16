@@ -35,6 +35,56 @@
             grid-template-columns: repeat(auto-fill, minmax(40px, 1fr));
             gap: 8px;
         }
+
+    /* 侧边悬浮打乱按钮 */
+    .shuffle-sidebar {
+        position: fixed;
+        right: 0;
+        top: 50%;
+        transform: translateY(-50%);
+        z-index: 100;
+        cursor: pointer;
+    }
+    .shuffle-sidebar-inner {
+        background: linear-gradient(135deg, #f59e0b, #d97706);
+        color: white;
+        border-radius: 10px 0 0 10px;
+        box-shadow: -3px 3px 16px rgba(245, 158, 11, 0.35);
+        display: flex;
+        align-items: center;
+        padding: 14px 10px;
+        transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+        gap: 8px;
+        overflow: hidden;
+        max-width: 44px;
+    }
+    .shuffle-sidebar:hover .shuffle-sidebar-inner {
+        max-width: 160px;
+        padding-right: 18px;
+    }
+    .shuffle-sidebar-arrow {
+        font-size: 16px;
+        transition: transform 0.35s ease;
+        flex-shrink: 0;
+    }
+    .shuffle-sidebar:hover .shuffle-sidebar-arrow {
+        transform: rotate(180deg);
+    }
+    .shuffle-sidebar-label {
+        white-space: nowrap;
+        font-size: 13px;
+        font-weight: bold;
+        opacity: 0;
+        transition: opacity 0.25s ease 0.1s;
+    }
+    .shuffle-sidebar:hover .shuffle-sidebar-label {
+        opacity: 1;
+    }
+    .shuffle-sidebar.disabled {
+        pointer-events: none;
+        opacity: 0.4;
+    }
+
     </style>
 </head>
 <body class="bg-slate-50 min-h-screen text-slate-900 font-sans flex flex-col">
@@ -118,7 +168,7 @@
             <div class="flex gap-3 flex-wrap">
                 <button id="prev-question" class="hidden flex-1 py-4 bg-slate-200 text-slate-600 rounded-2xl font-bold shadow-sm hover:bg-slate-300 transition-all">上一题</button>
                 <button id="multi-submit" class="hidden flex-1 py-4 bg-indigo-600 text-white rounded-2xl font-bold shadow-lg hover:bg-indigo-700 transition-all">确认提交</button>
-                <button id="shuffle-question" onclick="handleSpecificShuffle()" class="flex-1 py-4 bg-amber-500 text-white rounded-2xl font-bold shadow-md hover:bg-amber-600 transition-all flex items-center justify-center gap-1">🎲 特定打乱</button>
+                
                 <button id="next-question" class="hidden flex-1 py-4 bg-slate-900 text-white rounded-2xl font-bold shadow-lg hover:bg-slate-800 transition-all">下一题</button>
             </div>
 
@@ -521,7 +571,7 @@ function render() {
         document.getElementById('ai-explain').textContent = '';
 
         // 💡 修复点 2：每次加载题目或跳转时，保证打乱按钮重新变为可用状态
-        document.getElementById('shuffle-question').disabled = false;
+        document.getElementById('shuffle-sidebar').classList.remove('disabled');
 
         if (q.type === '填空题') {
             list.innerHTML = "";
@@ -668,7 +718,7 @@ function showResult(userInput) {
     let userAnsStr = "";
     
     // 判卷展示期间为了不发生数据错位，先禁用打乱
-    document.getElementById('shuffle-question').disabled = true; 
+    document.getElementById('shuffle-sidebar').classList.add('disabled');
 
     if (q.type === '填空题') {
         correctStr = String(q.answer || "").trim();
@@ -843,5 +893,13 @@ function showSummary() {
     }
 }
 </script>
+
+<div id="shuffle-sidebar" class="shuffle-sidebar" onclick="handleSpecificShuffle()" title="特定打乱重排题目">
+    <div class="shuffle-sidebar-inner">
+        <span class="shuffle-sidebar-arrow">◀</span>
+        <span class="shuffle-sidebar-label">🎲 特定打乱</span>
+    </div>
+</div>
+
 </body>
 </html>
